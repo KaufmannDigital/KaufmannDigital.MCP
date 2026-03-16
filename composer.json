@@ -1,5 +1,5 @@
 {
-    "name": "kaufmanndigital/mcp",
+    "name": "kaufmanndigital/neos-mcp",
     "description": "Neos MCP Server — exposes Neos Content Repository actions via Model Context Protocol",
     "homepage": "https://github.com/KaufmannDigital/KaufmannDigital.MCP",
     "license": "GPL-3.0-or-later",
