@@ -182,7 +182,7 @@ Publishes nodes from a user workspace to the base workspace (usually `live`).
 ### `upload_asset`
 Imports a file into the Neos media library from a URL or a local absolute path.
 
-> **Security note:** Local path support allows importing any file readable by the web server process. Only use in trusted, non-public environments.
+> **Security note:** Local path access is restricted to the directory configured via `localImportBasePath` in `Settings.yaml` (default: `Data/MCP-Import`). Files outside that directory are rejected.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
