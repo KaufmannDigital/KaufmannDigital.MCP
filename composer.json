@@ -1,0 +1,33 @@
+{
+    "name": "kaufmanndigital/mcp",
+    "description": "Neos MCP Server — exposes Neos Content Repository actions via Model Context Protocol",
+    "homepage": "https://github.com/KaufmannDigital/KaufmannDigital.MCP",
+    "license": "GPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Kaufmann Digital",
+            "email": "support@kaufmann.digital",
+            "homepage": "https://www.kaufmann.digital/",
+            "role": "Publisher"
+        }
+    ],
+    "type": "neos-package",
+    "require": {
+        "php": ">=8.1",
+        "neos/neos": "^8.0",
+        "flowpack/elasticsearch-contentrepositoryadaptor": "^8.0"
+    },
+    "conflict": {
+        "neos/neos": ">=9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "KaufmannDigital\\MCP\\": "Classes/"
+        }
+    },
+    "extra": {
+        "neos": {
+            "package-key": "KaufmannDigital.MCP"
+        }
+    }
+}

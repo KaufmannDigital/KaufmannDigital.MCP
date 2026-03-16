@@ -1,0 +1,17 @@
+-
+  name: 'MCP Server POST'
+  uriPattern: 'mcp'
+  defaults:
+    '@package': 'KaufmannDigital.MCP'
+    '@controller': 'Mcp'
+    '@action': 'index'
+  httpMethods: ['POST']
+
+-
+  name: 'MCP Server GET'
+  uriPattern: 'mcp'
+  defaults:
+    '@package': 'KaufmannDigital.MCP'
+    '@controller': 'Mcp'
+    '@action': 'stream'
+  httpMethods: ['GET']

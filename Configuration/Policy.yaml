@@ -1,0 +1,11 @@
+privilegeTargets:
+  'Neos\Flow\Security\Authorization\Privilege\Method\MethodPrivilege':
+    'KaufmannDigital.MCP:McpApi':
+      matcher: 'method(KaufmannDigital\MCP\Controller\McpController->(.*)Action())'
+
+roles:
+  'Neos.Flow:Everybody':
+    privileges:
+      -
+        privilegeTarget: 'KaufmannDigital.MCP:McpApi'
+        permission: GRANT

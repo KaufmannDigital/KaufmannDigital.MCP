@@ -1,0 +1,5 @@
+Neos:
+  Flow:
+    mvc:
+      routes:
+        'KaufmannDigital.MCP': 'before Neos.Neos'

@@ -1,0 +1,30 @@
+KaufmannDigital:
+  MCP:
+    Token: null # TO BE SET in Configuration/Development/Settings.yaml
+
+    # IP allowlist for incoming requests.
+    # EMPTY LIST = BLOCK ALL (default). Must explicitly allow IPs or CIDRs.
+    # Supports exact IPs and CIDR notation (IPv4 and IPv6).
+    # Note: uses REMOTE_ADDR — behind a reverse proxy this may be the proxy IP.
+    #
+    # Common ranges to add in Development/Settings.yaml:
+    #   '127.0.0.1'        — localhost IPv4
+    #   '::1'              — localhost IPv6
+    #   '172.16.0.0/12'    — Docker bridge networks (standard ddev, docker-compose)
+    #   '192.168.0.0/16'   — typical local network
+    #   '10.0.0.0/8'       — VPN / corporate network ranges
+    allowedIps: []
+
+    # Base directory for local file imports via upload_asset.
+    # Relative paths are resolved from FLOW_PATH_ROOT (the project root).
+    # Absolute paths are used as-is.
+    localImportBasePath: 'Data/MCP-Import'
+
+    # Default content dimensions used when creating nodes.
+    dimensions:
+      language:
+        - 'de'
+
+    # Default target dimensions used when creating nodes.
+    targetDimensions:
+      language: 'de'
