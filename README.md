@@ -23,7 +23,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server for Neos CMS
 
 > **Read this section before deploying.**
 
-- **The Bearer token (and IP-Filter) is the only access control.** Anyone who obtains the token has full read/write access to your Neos content repository, including the ability to create, update, and publish nodes.
+- **The API token (and IP-Filter) is the only access control.** Anyone who obtains the token has full read/write access to your Neos content repository, including the ability to create, update, and publish nodes.
 - **Use a strong, randomly generated token** (at minimum 32 characters). Never commit it to version control.
 - **The `upload_asset` tool accepts local filesystem paths.** If enabled, a token holder can import any file readable by the web server process (e.g. config files). Restrict access to trusted users only.
 - **All write operations bypass Flow's authorization checks** (`withoutAuthorizationChecks`). This is intentional for AI-driven automation, but means no Neos backend role restrictions apply.
@@ -42,7 +42,7 @@ composer require kaufmanndigital/mcp
 
 ## Configuration
 
-**1. Set the Bearer token and optionally restrict access by IP** in `Configuration/Development/Settings.yaml` (never `Settings.yaml` — to keep it out of version control):
+**1. Set the API token and optionally restrict access by IP** in `Configuration/Development/Settings.yaml` (never `Settings.yaml` — to keep it out of version control):
 
 ```yaml
 KaufmannDigital:
@@ -68,7 +68,7 @@ KaufmannDigital:
     "neos": {
       "type": "http",
       "url": "https://<your-site>/mcp",
-      "headers": { "Authorization": "Bearer your-strong-random-token-here" }
+      "headers": { "X-Api-Token": "your-strong-random-token-here" }
     }
   }
 }

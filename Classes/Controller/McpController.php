@@ -52,12 +52,7 @@ class McpController extends ActionController
             $this->throwStatus(401, 'Unauthorized');
         }
 
-        $authHeader = current($this->request->getHttpRequest()->getHeader('Authorization'));
-        $givenToken = null;
-
-        if (is_string($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
-            $givenToken = substr($authHeader, 7);
-        }
+        $givenToken = current($this->request->getHttpRequest()->getHeader('X-Api-Token')) ?: null;
 
         if (empty($givenToken)) {
             $this->throwStatus(401, 'Unauthorized');
