@@ -6,7 +6,6 @@ namespace KaufmannDigital\MCP\Utility;
 
 use Neos\ContentRepository\Domain\Model\NodeType;
 use Neos\Flow\Annotations as Flow;
-use Neos\Media\Domain\Model\Asset;
 
 /**
  * @Flow\Scope("singleton")
@@ -22,13 +21,21 @@ class PropertyValueResolver
         $type = $nodeType->getPropertyType($propertyName);
 
         if ($type === 'DateTime') {
-            return new \DateTime($value);
+            try {
+                return new \DateTime($value);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException(
+                    sprintf('Invalid date/time value for property "%s": %s', $propertyName, $value),
+                    1710000001,
+                    $e
+                );
+            }
         }
 
-        if (str_contains($type, 'Neos\\Media\\Domain\\Model\\')) {
+        if (str_contains($type, 'Neos\\Media\\Domain\\Model\\') && class_exists($type)) {
             /** @var \Doctrine\ORM\EntityManagerInterface $em */
             $em = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Doctrine\ORM\EntityManagerInterface::class);
-            return $em->find(Asset::class, $value) ?? $value;
+            return $em->find($type, $value) ?? $value;
         }
 
         return $value;

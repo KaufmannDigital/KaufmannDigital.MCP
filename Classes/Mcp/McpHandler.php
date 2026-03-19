@@ -47,7 +47,7 @@ class McpHandler
 
     public function handle(array $data): array
     {
-        $id = $data['id'];
+        $id = $data['id'] ?? null;
         $method = $data['method'] ?? '';
 
         $result = match ($method) {
@@ -89,11 +89,11 @@ class McpHandler
                 } catch (\Throwable $e) {
                     $message = $this->throwableStorage->logThrowable($e);
                     $this->logger->error('MCP tool "' . $toolName . '" failed: ' . $message, LogEnvironment::fromMethodName(__METHOD__));
-                    return ['content' => [['type' => 'text', 'text' => 'Tool execution failed. The error has been logged (ref: ' . substr($message, 0, 60) . ').']]];
+                    return ['content' => [['type' => 'text', 'text' => 'Tool execution failed. The error has been logged (ref: ' . substr($message, 0, 60) . ').']], 'isError' => true];
                 }
             }
         }
-        return ['content' => [['type' => 'text', 'text' => 'Unknown tool: ' . $toolName]]];
+        return ['content' => [['type' => 'text', 'text' => 'Unknown tool: ' . $toolName]], 'isError' => true];
     }
 
     private function tools(): array

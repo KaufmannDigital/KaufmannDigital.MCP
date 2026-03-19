@@ -62,14 +62,14 @@ class CreateNodeTool implements ToolInterface
     {
         return [
             'name' => 'create_node',
-            'description' => 'Create a new Neos node under a given parent node. Nodes are created in a user workspace and must be published separately.',
+            'description' => 'Create a new Neos node under a given parent node. Default workspace is "live" — use a user workspace if you want to review before publishing.',
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
                     'parentNodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the parent node'],
                     'nodeType' => ['type' => 'string', 'description' => 'Node type name, e.g. KaufmannDigital.Nova.Magazine:Page.Magazine'],
                     'properties' => ['type' => 'object', 'description' => 'Optional key/value map of properties to set on the new node'],
-                    'workspaceName' => ['type' => 'string', 'description' => 'Workspace to create the node in (default: user-admin, do NOT use live)'],
+                    'workspaceName' => ['type' => 'string', 'description' => 'Workspace to create the node in (default: live)'],
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],

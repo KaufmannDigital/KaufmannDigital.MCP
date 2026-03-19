@@ -39,6 +39,18 @@ class BatchUpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
+    /**
+     * @Flow\InjectConfiguration(path="dimensions")
+     * @var array
+     */
+    protected $dimensions;
+
+    /**
+     * @Flow\InjectConfiguration(path="targetDimensions")
+     * @var array
+     */
+    protected $targetDimensions;
+
     public function getDefinition(): array
     {
         return [
@@ -82,6 +94,8 @@ class BatchUpdatePropertyTool implements ToolInterface
 
         $context = $this->contentContextFactory->create([
             'workspaceName' => $args['workspaceName'],
+            'dimensions' => $this->dimensions,
+            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
         ]);

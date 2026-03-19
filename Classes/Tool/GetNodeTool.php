@@ -25,6 +25,18 @@ class GetNodeTool implements ToolInterface
      */
     protected $nodeSerializer;
 
+    /**
+     * @Flow\InjectConfiguration(path="dimensions")
+     * @var array
+     */
+    protected $dimensions;
+
+    /**
+     * @Flow\InjectConfiguration(path="targetDimensions")
+     * @var array
+     */
+    protected $targetDimensions;
+
     public function getDefinition(): array
     {
         return [
@@ -56,6 +68,8 @@ class GetNodeTool implements ToolInterface
 
         $context = $this->contentContextFactory->create([
             'workspaceName' => $args['workspaceName'] ?? 'live',
+            'dimensions' => $this->dimensions,
+            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
         ]);

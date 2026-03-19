@@ -91,20 +91,34 @@ class UploadAssetTool implements ToolInterface
         $securityContext->withoutAuthorizationChecks(function () use ($url, $title, $filename, $tagLabel, &$asset, &$error) {
             try {
                 if (str_starts_with($url, '/')) {
+                    // Resolve base path for local file access restriction
                     $basePath = $this->localImportBasePath;
                     if (!str_starts_with($basePath, '/')) {
                         $basePath = FLOW_PATH_ROOT . $basePath;
                     }
-                    $basePath = rtrim(realpath($basePath) ?: $basePath, '/') . '/';
-                    $realUrl = realpath($url);
-                    if ($realUrl === false || !str_starts_with($realUrl, $basePath)) {
-                        $error = 'Local file access is restricted to: ' . rtrim($basePath, '/');
+                    $realBasePath = realpath($basePath);
+                    if ($realBasePath === false) {
+                        $error = 'Local import base path does not exist or is not accessible: ' . $basePath;
                         return;
                     }
-                    $resource = $this->resourceManager->importResource($url);
-                    if ($filename !== null) {
-                        $resource->setFilename($filename);
+                    $realBasePath = rtrim($realBasePath, '/') . '/';
+
+                    // Resolve the parent directory of the requested file (handles symlinks)
+                    // and append only the basename — this avoids realpath() failing on
+                    // filenames with non-ASCII characters while still preventing traversal.
+                    $parentDir = realpath(dirname($url));
+                    if ($parentDir === false) {
+                        $error = 'Directory does not exist: ' . dirname($url);
+                        return;
                     }
+                    $resolvedPath = rtrim($parentDir, '/') . '/' . basename($url);
+
+                    if (!str_starts_with($resolvedPath, $realBasePath)) {
+                        $error = 'Local file access is restricted to: ' . rtrim($realBasePath, '/');
+                        return;
+                    }
+
+                    $resource = $this->resourceManager->importResource($resolvedPath);
                 } else {
                     $resource = $this->resourceManager->importResource($url);
                 }

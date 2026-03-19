@@ -26,6 +26,18 @@ class GetChildrenTool implements ToolInterface
      */
     protected $nodeSerializer;
 
+    /**
+     * @Flow\InjectConfiguration(path="dimensions")
+     * @var array
+     */
+    protected $dimensions;
+
+    /**
+     * @Flow\InjectConfiguration(path="targetDimensions")
+     * @var array
+     */
+    protected $targetDimensions;
+
     public function getDefinition(): array
     {
         return [
@@ -56,6 +68,8 @@ class GetChildrenTool implements ToolInterface
 
         $context = $this->contentContextFactory->create([
             'workspaceName' => $args['workspaceName'] ?? 'live',
+            'dimensions' => $this->dimensions,
+            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
         ]);
@@ -65,8 +79,13 @@ class GetChildrenTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Node not found: ' . $args['nodeIdentifier']]];
         }
 
+        $nodeTypeFilter = $args['nodeTypeFilter'] ?? '';
+        if ($nodeTypeFilter !== '' && !preg_match('/^[A-Za-z0-9.:]+$/', $nodeTypeFilter)) {
+            return [['type' => 'text', 'text' => 'Error: invalid nodeTypeFilter — only alphanumeric characters, dots and colons are allowed']];
+        }
+
         $q = new FlowQuery([$node]);
-        $filter = !empty($args['nodeTypeFilter']) ? '[instanceof ' . $args['nodeTypeFilter'] . ']' : '';
+        $filter = $nodeTypeFilter !== '' ? '[instanceof ' . $nodeTypeFilter . ']' : '';
         $children = $q->children($filter)->get();
 
         $responseProperties = $args['responseProperties'] ?? null;
