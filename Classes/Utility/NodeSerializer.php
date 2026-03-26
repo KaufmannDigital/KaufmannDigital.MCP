@@ -89,6 +89,7 @@ class NodeSerializer
             return $result;
         }
         $metaFields = [
+            'identifier' => fn() => $node->getIdentifier(),
             'nodeType'  => fn() => $node->getNodeType()->getName(),
             'label'     => fn() => $node->getLabel(),
             'name'      => fn() => $node->getName(),
