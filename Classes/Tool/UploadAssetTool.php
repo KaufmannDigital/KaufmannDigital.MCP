@@ -113,7 +113,7 @@ class UploadAssetTool implements ToolInterface
                     }
                     $resolvedPath = rtrim($parentDir, '/') . '/' . basename($url);
 
-                    if (!str_starts_with($resolvedPath, $realBasePath)) {
+                    if (!str_starts_with(rtrim($parentDir, '/') . '/', $realBasePath)) {
                         $error = 'Local file access is restricted to: ' . rtrim($realBasePath, '/');
                         return;
                     }
