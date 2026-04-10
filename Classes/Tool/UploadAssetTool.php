@@ -118,7 +118,28 @@ class UploadAssetTool implements ToolInterface
                         return;
                     }
 
-                    $resource = $this->resourceManager->importResource($resolvedPath);
+                    // Handle Unicode normalization differences (NFC vs NFD) in filenames
+                    if (!file_exists($resolvedPath) && class_exists('Normalizer')) {
+                        foreach ([\Normalizer::FORM_C, \Normalizer::FORM_D] as $form) {
+                            $candidate = rtrim($parentDir, '/') . '/' . \Normalizer::normalize(basename($url), $form);
+                            if (file_exists($candidate)) {
+                                $resolvedPath = $candidate;
+                                break;
+                            }
+                        }
+                    }
+
+                    $ext = pathinfo($resolvedPath, PATHINFO_EXTENSION);
+                    $tempPath = sys_get_temp_dir() . '/' . uniqid('mcp_asset_') . ($ext !== '' ? '.' . $ext : '');
+                    if (!copy($resolvedPath, $tempPath)) {
+                        $error = 'Failed to read local file: ' . $resolvedPath;
+                        return;
+                    }
+                    try {
+                        $resource = $this->resourceManager->importResource($tempPath);
+                    } finally {
+                        @unlink($tempPath);
+                    }
                 } else {
                     $resource = $this->resourceManager->importResource($url);
                 }
