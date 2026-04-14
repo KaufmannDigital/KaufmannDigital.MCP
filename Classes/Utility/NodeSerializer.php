@@ -7,6 +7,7 @@ namespace KaufmannDigital\MCP\Utility;
 use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
+use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Media\Domain\Model\Asset;
 use Neos\Media\Domain\Model\ImageInterface;
 
@@ -20,6 +21,13 @@ class NodeSerializer
      * @var PersistenceManagerInterface
      */
     protected $persistenceManager;
+
+    /**
+     * @Flow\Inject
+     * @var ResourceManager
+     */
+    protected $resourceManager;
+
     public function serializeNode(NodeInterface $node, bool $includeChildren = true): array
     {
         $result = [
@@ -116,10 +124,14 @@ class NodeSerializer
             return $value->format(\DateTimeInterface::ATOM);
         }
         if ($value instanceof ImageInterface) {
-            return ['__type' => 'Image', 'identifier' => $this->persistenceManager->getIdentifierByObject($value)];
+            $resource = method_exists($value, 'getResource') ? $value->getResource() : null;
+            $url = $resource ? $this->resourceManager->getPublicPersistentResourceUri($resource) : null;
+            return ['__type' => 'Image', 'identifier' => $this->persistenceManager->getIdentifierByObject($value), 'url' => $url, 'filename' => $resource?->getFilename()];
         }
         if ($value instanceof Asset) {
-            return ['__type' => 'Asset', 'identifier' => $this->persistenceManager->getIdentifierByObject($value), 'filename' => $value->getResource()?->getFilename()];
+            $resource = $value->getResource();
+            $url = $resource ? $this->resourceManager->getPublicPersistentResourceUri($resource) : null;
+            return ['__type' => 'Asset', 'identifier' => $this->persistenceManager->getIdentifierByObject($value), 'filename' => $resource?->getFilename(), 'url' => $url];
         }
         if (is_array($value)) {
             return array_map(fn($v) => $this->serializeValue($v), $value);
