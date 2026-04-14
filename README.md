@@ -35,7 +35,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server for Neos CMS
 ## Installation
 
 ```bash
-composer require kaufmanndigital/mcp
+composer require kaufmanndigital/neos-mcp
 ```
 
 ---
