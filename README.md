@@ -144,6 +144,18 @@ Creates a new node under a given parent node.
 
 ---
 
+### `delete_node`
+Deletes a node by UUID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeIdentifier` | string | ✓ | Node UUID to delete |
+| `workspaceName` | string | | Workspace (default: `live`) |
+| `publishAfterDelete` | boolean | | Publish delete from user workspace to base workspace (default: `false`) |
+| `responseProperties` | array | | Fields to return for deleted node (default: `identifier` only) |
+
+---
+
 ### `update_property`
 Sets a single property on a node.
 
