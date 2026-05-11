@@ -49,8 +49,10 @@ class SearchNodesTool implements ToolInterface
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden".',
+                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate".',
                     ],
+                    'sortBy' => ['type' => 'string', 'description' => 'Elasticsearch field to sort by, e.g. "_creationDateTime" or a node property name (default: no explicit sort)'],
+                    'sortDirection' => ['type' => 'string', 'enum' => ['asc', 'desc'], 'description' => 'Sort direction: "asc" or "desc" (default: desc)'],
                 ],
                 'required' => [],
             ],
@@ -85,6 +87,14 @@ class SearchNodesTool implements ToolInterface
         }
         if (!empty($args['nodeType'])) {
             $qb->nodeType($args['nodeType']);
+        }
+        if (!empty($args['sortBy'])) {
+            $direction = ($args['sortDirection'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+            if ($direction === 'desc') {
+                $qb->sortDesc($args['sortBy']);
+            } else {
+                $qb->sortAsc($args['sortBy']);
+            }
         }
 
         $responseProperties = $args['responseProperties'] ?? null;
