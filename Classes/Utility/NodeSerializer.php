@@ -97,13 +97,14 @@ class NodeSerializer
             return $result;
         }
         $metaFields = [
-            'identifier' => fn() => $node->getIdentifier(),
-            'nodeType'  => fn() => $node->getNodeType()->getName(),
-            'label'     => fn() => $node->getLabel(),
-            'name'      => fn() => $node->getName(),
-            'path'      => fn() => $node->getPath(),
-            'workspace' => fn() => $node->getWorkspace()->getName(),
-            'hidden'    => fn() => $node->isHidden(),
+            'identifier'   => fn() => $node->getIdentifier(),
+            'nodeType'     => fn() => $node->getNodeType()->getName(),
+            'label'        => fn() => $node->getLabel(),
+            'name'         => fn() => $node->getName(),
+            'path'         => fn() => $node->getPath(),
+            'workspace'    => fn() => $node->getWorkspace()->getName(),
+            'hidden'       => fn() => $node->isHidden(),
+            'creationDate' => fn() => $node->getCreationDateTime()?->format(\DateTimeInterface::ATOM),
         ];
         foreach ($responseProperties as $field) {
             if (isset($metaFields[$field])) {
