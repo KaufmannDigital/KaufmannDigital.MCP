@@ -106,6 +106,15 @@ class NodeSerializer
             'hidden'       => fn() => $node->isHidden(),
             'creationDate' => fn() => $node->getCreationDateTime()?->format(\DateTimeInterface::ATOM),
         ];
+        if (in_array('*', $responseProperties, true)) {
+            foreach ($metaFields as $field => $resolver) {
+                $result[$field] = $resolver();
+            }
+            foreach ($node->getProperties() as $name => $value) {
+                $result[$name] = $this->serializeValue($value);
+            }
+            return $result;
+        }
         foreach ($responseProperties as $field) {
             if (isset($metaFields[$field])) {
                 $result[$field] = ($metaFields[$field])();

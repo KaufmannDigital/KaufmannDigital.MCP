@@ -49,7 +49,7 @@ class SearchNodesTool implements ToolInterface
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate".',
+                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate". Use ["*"] to return all node properties and all meta-fields at once.',
                     ],
                     'sortBy' => ['type' => 'string', 'description' => 'Elasticsearch field to sort by. Use "neos_creation_date_time" for creation date, "neos_last_modification_date_time" for last modification, or a node property name (default: no explicit sort)'],
                     'sortDirection' => ['type' => 'string', 'enum' => ['asc', 'desc'], 'description' => 'Sort direction: "asc" or "desc" (default: desc)'],
