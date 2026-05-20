@@ -10,6 +10,7 @@ use Neos\ContentRepository\Domain\Service\NodeTypeManager;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Neos\Domain\Service\ContentContextFactory;
+use Neos\Neos\Utility\NodeUriPathSegmentGenerator;
 
 /**
  * @Flow\Scope("singleton")
@@ -45,6 +46,12 @@ class CreateNodeTool implements ToolInterface
      * @var PropertyValueResolver
      */
     protected $propertyValueResolver;
+
+    /**
+     * @Flow\Inject
+     * @var NodeUriPathSegmentGenerator
+     */
+    protected $nodeUriPathSegmentGenerator;
 
     /**
      * @Flow\InjectConfiguration(path="dimensions")
@@ -126,10 +133,16 @@ class CreateNodeTool implements ToolInterface
         $newNode = null;
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($parentNode, $nodeName, $nodeType, $resolvedProperties, &$newNode) {
+        $securityContext->withoutAuthorizationChecks(function () use ($parentNode, $nodeName, $nodeType, $resolvedProperties, $properties, &$newNode) {
             $newNode = $parentNode->createNode($nodeName, $nodeType);
             foreach ($resolvedProperties as $propertyName => $propertyValue) {
                 $newNode->setProperty($propertyName, $propertyValue);
+            }
+            if ($newNode->getNodeType()->isOfType('Neos.Neos:Document')) {
+                if (empty($properties['uriPathSegment'])) {
+                    $newNode->setProperty('uriPathSegment', $this->nodeUriPathSegmentGenerator->generateUriPathSegment($newNode));
+                }
+                NodeUriPathSegmentGenerator::setUniqueUriPathSegment($newNode);
             }
         });
 
