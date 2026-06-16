@@ -32,10 +32,21 @@ class PropertyValueResolver
             }
         }
 
-        if (str_contains($type, 'Neos\\Media\\Domain\\Model\\') && class_exists($type)) {
-            /** @var \Doctrine\ORM\EntityManagerInterface $em */
-            $em = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Doctrine\ORM\EntityManagerInterface::class);
-            return $em->find($type, $value) ?? $value;
+        // Asset-like properties (Image, Asset, Document and their interfaces) are referenced
+        // by asset identifier. Interfaces (e.g. ImageInterface) must be resolved via the
+        // AssetRepository, since class_exists()/EntityManager::find() cannot handle them.
+        if (str_contains($type, 'Neos\\Media\\Domain\\Model\\') && (class_exists($type) || interface_exists($type))) {
+            $assetRepository = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Media\Domain\Repository\AssetRepository::class);
+            $asset = $assetRepository->findByIdentifier($value);
+            if ($asset !== null) {
+                return $asset;
+            }
+            if (class_exists($type)) {
+                /** @var \Doctrine\ORM\EntityManagerInterface $em */
+                $em = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Doctrine\ORM\EntityManagerInterface::class);
+                return $em->find($type, $value) ?? $value;
+            }
+            return $value;
         }
 
         return $value;
