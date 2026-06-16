@@ -201,7 +201,23 @@ Imports a file into the Neos media library from a URL or a local absolute path.
 | `url` | string | ✓ | URL or absolute local path (e.g. `/var/www/html/images/file.jpg`) |
 | `filename` | string | | Original filename — required when using a local path |
 | `title` | string | | Title/label for the asset in the media library |
+| `caption` | string | | Caption/description text for the asset |
+| `copyrightNotice` | string | | Copyright notice, e.g. the photographer name |
 | `tag` | string | | Tag to assign (created if it does not exist) |
+
+---
+
+### `update_asset`
+Updates metadata fields of an existing asset, identified by its asset identifier. Only the provided fields are changed.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `identifier` | string | ✓ | Asset identifier (UUID) of the asset to update |
+| `title` | string | | Title/label for the asset |
+| `caption` | string | | Caption/description text for the asset |
+| `copyrightNotice` | string | | Copyright notice, e.g. the photographer name |
+| `tags` | array | | Tag labels to assign (created if they do not exist); added to existing tags unless `replaceTags` is `true` |
+| `replaceTags` | boolean | | Replace all existing tags with the given `tags` instead of adding (default: `false`) |
 
 ---
 
@@ -233,7 +249,7 @@ McpController
 ```
 
 - **Write tools** bypass Flow's authorization via `SecurityContext::withoutAuthorizationChecks()`
-- **Asset resolution:** UUID strings are automatically resolved to Asset objects (`EntityManager::find(Asset::class, $uuid)`)
+- **Asset resolution:** For properties typed as a `Neos\Media\Domain\Model\*` class or interface (e.g. `ImageInterface`), a UUID string is resolved to the Asset object via `AssetRepository::findByIdentifier()`. This handles interface-typed properties that `EntityManager::find()` cannot.
 - **DateTime resolution:** ISO-8601 strings are automatically converted to `DateTime` objects
 - **ElasticSearchQueryBuilder** is prototype-scoped — always instantiate via `$objectManager->get()` for a fresh instance per call
 
