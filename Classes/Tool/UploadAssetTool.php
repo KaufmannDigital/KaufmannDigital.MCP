@@ -64,6 +64,8 @@ class UploadAssetTool implements ToolInterface
                     'url' => ['type' => 'string', 'description' => 'URL or absolute local path (e.g. /var/www/html/cover-images/file.jpg) of the file to import'],
                     'filename' => ['type' => 'string', 'description' => 'Original filename including extension (e.g. fm_01.pdf) — required when using a local path'],
                     'title' => ['type' => 'string', 'description' => 'Title/label for the asset in the media library (optional)'],
+                    'caption' => ['type' => 'string', 'description' => 'Caption/description text for the asset (optional)'],
+                    'copyrightNotice' => ['type' => 'string', 'description' => 'Copyright notice for the asset, e.g. the photographer name (optional)'],
                     'tag' => ['type' => 'string', 'description' => 'Tag label to assign to the asset (created if it does not exist, optional)'],
                 ],
                 'required' => ['url'],
@@ -79,6 +81,8 @@ class UploadAssetTool implements ToolInterface
         }
 
         $title = $args['title'] ?? null;
+        $caption = $args['caption'] ?? null;
+        $copyrightNotice = $args['copyrightNotice'] ?? null;
         $filename = $args['filename'] ?? null;
         $tagLabel = $args['tag'] ?? null;
 
@@ -88,7 +92,7 @@ class UploadAssetTool implements ToolInterface
         $asset = null;
         $error = null;
 
-        $securityContext->withoutAuthorizationChecks(function () use ($url, $title, $filename, $tagLabel, &$asset, &$error) {
+        $securityContext->withoutAuthorizationChecks(function () use ($url, $title, $caption, $copyrightNotice, $filename, $tagLabel, &$asset, &$error) {
             try {
                 if (str_starts_with($url, '/')) {
                     // Resolve base path for local file access restriction
@@ -159,6 +163,14 @@ class UploadAssetTool implements ToolInterface
                 $asset->setTitle($title);
             }
 
+            if ($caption !== null) {
+                $asset->setCaption($caption);
+            }
+
+            if ($copyrightNotice !== null) {
+                $asset->setCopyrightNotice($copyrightNotice);
+            }
+
             if ($tagLabel !== null) {
                 $tag = $this->tagRepository->findOneByLabel($tagLabel);
                 if ($tag === null) {
@@ -181,6 +193,8 @@ class UploadAssetTool implements ToolInterface
         return [['type' => 'text', 'text' => json_encode([
             'identifier' => $identifier,
             'title' => $asset->getTitle(),
+            'caption' => $asset->getCaption(),
+            'copyrightNotice' => $asset->getCopyrightNotice(),
             'filename' => $asset->getResource()->getFilename(),
             'mediaType' => $asset->getResource()->getMediaType(),
             'tag' => $tagLabel,
