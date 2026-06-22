@@ -88,6 +88,7 @@ Loads a single node by its UUID.
 | `nodeIdentifier` | string | ✓ | Node UUID |
 | `workspaceName` | string | | Workspace (default: `live`) |
 | `includeChildren` | boolean | | Include direct child nodes (default: `false`) |
+| `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
 
 ---
@@ -127,6 +128,7 @@ Returns direct child nodes of a given node.
 | `nodeIdentifier` | string | ✓ | Parent node UUID |
 | `nodeTypeFilter` | string | | Node type filter, e.g. `Neos.Neos:Document` |
 | `workspaceName` | string | | Workspace (default: `live`) |
+| `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
 
 ---
@@ -140,6 +142,7 @@ Creates a new node under a given parent node.
 | `nodeType` | string | ✓ | Node type name, e.g. `Neos.Neos:Document` |
 | `properties` | object | | Key/value map of properties to set |
 | `workspaceName` | string | | Workspace (default: `live`) |
+| `dimensions` | object | | Content dimensions to create the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
 
 ---
@@ -152,6 +155,7 @@ Deletes a node by UUID.
 | `nodeIdentifier` | string | ✓ | Node UUID to delete |
 | `workspaceName` | string | | Workspace (default: `live`) |
 | `publishAfterDelete` | boolean | | Publish delete from user workspace to base workspace (default: `false`) |
+| `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return for deleted node (default: `identifier` only) |
 
 ---
@@ -165,6 +169,7 @@ Sets a single property on a node.
 | `propertyName` | string | ✓ | Property name |
 | `propertyValue` | any | ✓ | New value |
 | `workspaceName` | string | ✓ | Workspace to write to |
+| `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
 
 ---
@@ -176,6 +181,7 @@ Sets properties on multiple nodes in a single call.
 |-----------|------|----------|-------------|
 | `nodes` | array | ✓ | List of `{nodeIdentifier, properties}` objects |
 | `workspaceName` | string | ✓ | Workspace to write to |
+| `dimensions` | object | | Content dimensions to resolve the nodes in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields per node (default: `identifier` only) |
 
 ---
@@ -236,6 +242,24 @@ All tools return **only the `identifier` by default**. Use `responseProperties` 
 
 // After write operations: omit responseProperties entirely — only identifier is needed
 ```
+
+---
+
+## Content Dimensions
+
+The node-resolving tools (`get_node`, `get_children`, `create_node`, `delete_node`, `update_property`, `batch_update_property`) build their `ContentContext` from the site's content dimension configuration.
+
+- **No `dimensions` argument (default):** the tools do **not** set any dimensions, so the `ContentContextFactory` automatically applies the configured `Neos.ContentRepository.contentDimensions` defaults (e.g. `language` → its `default` preset). This means you get the site's primary dimension out of the box without any package configuration.
+- **Explicit `dimensions` override:** pass an object mapping each dimension to its value(s), e.g. `{"language":["en_DE"]}`, to resolve nodes in another dimension. `targetDimensions` are derived automatically from the first value of each dimension.
+- The override may be passed as a JSON object or a JSON-encoded string — both are accepted (some MCP clients serialize object arguments as strings).
+- If a node has no variant in the requested dimension, the tool returns `Node not found` (no silent fallback to the default dimension).
+
+```jsonc
+// Resolve the English (en_DE) variant of a node
+{ "nodeIdentifier": "…", "dimensions": { "language": ["en_DE"] }, "responseProperties": ["title"] }
+```
+
+> The Elasticsearch-based tools (`search_nodes`, `find_by_property`) and `publish_nodes` always operate on the ContentRepository default dimension and do not accept a `dimensions` argument.
 
 ---
 
