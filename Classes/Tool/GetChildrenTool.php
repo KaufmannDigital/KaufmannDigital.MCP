@@ -14,6 +14,8 @@ use Neos\Neos\Domain\Service\ContentContextFactory;
  */
 class GetChildrenTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -26,18 +28,6 @@ class GetChildrenTool implements ToolInterface
      */
     protected $nodeSerializer;
 
-    /**
-     * @Flow\InjectConfiguration(path="dimensions")
-     * @var array
-     */
-    protected $dimensions;
-
-    /**
-     * @Flow\InjectConfiguration(path="targetDimensions")
-     * @var array
-     */
-    protected $targetDimensions;
-
     public function getDefinition(): array
     {
         return [
@@ -49,6 +39,10 @@ class GetChildrenTool implements ToolInterface
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the parent node'],
                     'nodeTypeFilter' => ['type' => 'string', 'description' => 'Node type filter, e.g. Neos.Neos:Document (optional)'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace name (default: live)'],
+                    'dimensions' => [
+                        'type' => 'object',
+                        'description' => 'Content dimensions to resolve nodes in, e.g. {"language": ["de_DE"]}. Optional — defaults to the configured site default (language=de_DE). Override only to read other languages/countries.',
+                    ],
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
@@ -66,13 +60,11 @@ class GetChildrenTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Error: nodeIdentifier is required']];
         }
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $args['workspaceName'] ?? 'live',
-            'dimensions' => $this->dimensions,
-            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $node = $context->getNodeByIdentifier($args['nodeIdentifier']);
         if ($node === null) {

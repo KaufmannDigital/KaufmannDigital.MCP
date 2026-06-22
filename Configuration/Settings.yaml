@@ -19,12 +19,3 @@ KaufmannDigital:
     # Relative paths are resolved from FLOW_PATH_ROOT (the project root).
     # Absolute paths are used as-is.
     localImportBasePath: 'Data/MCP-Import'
-
-    # Default content dimensions used when creating nodes.
-    dimensions:
-      language:
-        - 'de'
-
-    # Default target dimensions used when creating nodes.
-    targetDimensions:
-      language: 'de'

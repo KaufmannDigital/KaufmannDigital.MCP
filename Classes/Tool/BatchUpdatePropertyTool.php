@@ -15,6 +15,8 @@ use Neos\Neos\Domain\Service\ContentContextFactory;
  */
 class BatchUpdatePropertyTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -39,18 +41,6 @@ class BatchUpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
-    /**
-     * @Flow\InjectConfiguration(path="dimensions")
-     * @var array
-     */
-    protected $dimensions;
-
-    /**
-     * @Flow\InjectConfiguration(path="targetDimensions")
-     * @var array
-     */
-    protected $targetDimensions;
-
     public function getDefinition(): array
     {
         return [
@@ -72,6 +62,7 @@ class BatchUpdatePropertyTool implements ToolInterface
                         ],
                     ],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to write to (e.g. "live" or a user workspace name)'],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
@@ -92,13 +83,11 @@ class BatchUpdatePropertyTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Error: nodes and workspaceName are required']];
         }
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $args['workspaceName'],
-            'dimensions' => $this->dimensions,
-            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $updated = [];
         $errors = [];

@@ -15,6 +15,8 @@ use Neos\Neos\Service\PublishingService;
  */
 class DeleteNodeTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -39,18 +41,6 @@ class DeleteNodeTool implements ToolInterface
      */
     protected $nodeSerializer;
 
-    /**
-     * @Flow\InjectConfiguration(path="dimensions")
-     * @var array
-     */
-    protected $dimensions;
-
-    /**
-     * @Flow\InjectConfiguration(path="targetDimensions")
-     * @var array
-     */
-    protected $targetDimensions;
-
     public function getDefinition(): array
     {
         return [
@@ -62,6 +52,7 @@ class DeleteNodeTool implements ToolInterface
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the node to delete'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to delete in (default: live)'],
                     'publishAfterDelete' => ['type' => 'boolean', 'description' => 'Publish the deletion from a user workspace to its base workspace (default: false)'],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
@@ -83,13 +74,11 @@ class DeleteNodeTool implements ToolInterface
         $workspaceName = $args['workspaceName'] ?? 'live';
         $publishAfterDelete = (bool)($args['publishAfterDelete'] ?? false);
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $workspaceName,
-            'dimensions' => $this->dimensions,
-            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $node = $context->getNodeByIdentifier($nodeIdentifier);
         if ($node === null) {

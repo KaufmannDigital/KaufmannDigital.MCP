@@ -17,6 +17,8 @@ use Neos\Neos\Utility\NodeUriPathSegmentGenerator;
  */
 class CreateNodeTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -53,18 +55,6 @@ class CreateNodeTool implements ToolInterface
      */
     protected $nodeUriPathSegmentGenerator;
 
-    /**
-     * @Flow\InjectConfiguration(path="dimensions")
-     * @var array
-     */
-    protected $dimensions;
-
-    /**
-     * @Flow\InjectConfiguration(path="targetDimensions")
-     * @var array
-     */
-    protected $targetDimensions;
-
     public function getDefinition(): array
     {
         return [
@@ -77,6 +67,7 @@ class CreateNodeTool implements ToolInterface
                     'nodeType' => ['type' => 'string', 'description' => 'Node type name, e.g. KaufmannDigital.Nova.Magazine:Page.Magazine'],
                     'properties' => ['type' => 'object', 'description' => 'Optional key/value map of properties to set on the new node'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to create the node in (default: live)'],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
@@ -99,13 +90,11 @@ class CreateNodeTool implements ToolInterface
 
         $workspaceName = $args['workspaceName'] ?? 'live';
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $workspaceName,
-            'dimensions' => $this->dimensions,
-            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $parentNode = $context->getNodeByIdentifier($parentNodeIdentifier);
         if ($parentNode === null) {

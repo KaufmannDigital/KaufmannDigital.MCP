@@ -15,6 +15,8 @@ use Neos\Neos\Domain\Service\ContentContextFactory;
  */
 class UpdatePropertyTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -39,18 +41,6 @@ class UpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
-    /**
-     * @Flow\InjectConfiguration(path="dimensions")
-     * @var array
-     */
-    protected $dimensions;
-
-    /**
-     * @Flow\InjectConfiguration(path="targetDimensions")
-     * @var array
-     */
-    protected $targetDimensions;
-
     public function getDefinition(): array
     {
         return [
@@ -63,6 +53,7 @@ class UpdatePropertyTool implements ToolInterface
                     'propertyName' => ['type' => 'string', 'description' => 'Property name to set'],
                     'propertyValue' => ['description' => 'New property value'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to write to (e.g. "live" or a user workspace name)'],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
@@ -80,13 +71,11 @@ class UpdatePropertyTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Error: nodeIdentifier, propertyName and workspaceName are required']];
         }
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $args['workspaceName'],
-            'dimensions' => $this->dimensions,
-            'targetDimensions' => $this->targetDimensions,
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $node = $context->getNodeByIdentifier($args['nodeIdentifier']);
         if ($node === null) {
