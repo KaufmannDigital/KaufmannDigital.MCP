@@ -76,6 +76,32 @@ KaufmannDigital:
 
 > **Note:** Use HTTP (not HTTPS) when connecting from Claude Code via ddev — ddev's self-signed certificates are not trusted by Bun's HTTP client.
 
+**3. Error handling (optional)**
+
+```yaml
+KaufmannDigital:
+  MCP:
+    # Return exception class, code, message, the affected node/property arguments and the log reference
+    # to the client when a tool fails (default: true). false = generic message + log reference only.
+    exposeErrorDetails: true
+    # Headers masked as '***' in Data/Logs/Exceptions (default: X-Api-Token, Authorization, Proxy-Authorization)
+    maskedRequestHeaders:
+      - 'X-Api-Token'
+      - 'Authorization'
+      - 'Proxy-Authorization'
+```
+
+Example error response (`isError: true`) with `exposeErrorDetails: true`:
+
+```
+Tool "create_node" failed: Neos\ContentRepository\Exception\NodeTypeNotFoundException (code 1316598370): The node type "Foo:Bar" is not available
+Arguments: parentNodeIdentifier=…, nodeType=Foo:Bar, workspaceName=live
+Log reference: 20261013120000abcdef.txt
+```
+
+> **Token masking in exception logs:** The package replaces the request information and backtrace renderers of Flow's throwable storage, so the configured headers and the configured `Token` value are written as `***` to `Data/Logs/Exceptions/*.txt` — for errors caught in tool execution as well as for uncaught exceptions. Flow's `Neos.Flow.log.throwables.renderRequestInformation` setting is still respected. Exception dumps written before this change may still contain the token in plain text — check and clean them up manually.
+> The masking is registered in the package's `Package.php` — if you update the package without Composer, run `./flow flow:package:rescan` once.
+
 ---
 
 ## Tools
