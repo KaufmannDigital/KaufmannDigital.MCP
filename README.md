@@ -140,7 +140,7 @@ Creates a new node under a given parent node.
 |-----------|------|----------|-------------|
 | `parentNodeIdentifier` | string | ✓ | Parent node UUID |
 | `nodeType` | string | ✓ | Node type name, e.g. `Neos.Neos:Document` |
-| `properties` | object | | Key/value map of properties to set |
+| `properties` | object | | Key/value map of properties to set (may include [internal node flags](#internal-node-flags) like `_hidden`) |
 | `workspaceName` | string | | Workspace (default: `live`) |
 | `dimensions` | object | | Content dimensions to create the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
@@ -166,7 +166,7 @@ Sets a single property on a node.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `nodeIdentifier` | string | ✓ | Node UUID |
-| `propertyName` | string | ✓ | Property name |
+| `propertyName` | string | ✓ | Property name, or an [internal node flag](#internal-node-flags) like `_hidden` |
 | `propertyValue` | any | ✓ | New value |
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
@@ -179,7 +179,7 @@ Sets properties on multiple nodes in a single call.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodes` | array | ✓ | List of `{nodeIdentifier, properties}` objects |
+| `nodes` | array | ✓ | List of `{nodeIdentifier, properties}` objects (`properties` may include [internal node flags](#internal-node-flags)) |
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the nodes in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields per node (default: `identifier` only) |
@@ -233,7 +233,7 @@ All tools return **only the `identifier` by default**. Use `responseProperties` 
 
 **Available values:**
 - Node properties: any property name defined on the node type, e.g. `"title"`, `"releaseDate"`, `"uriPathSegment"`
-- Meta fields: `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`
+- Meta fields: `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"hiddenInIndex"`, `"hiddenBeforeDateTime"`, `"hiddenAfterDateTime"` (the flags can also be requested with their `_`-prefixed write names, e.g. `"_hidden"`)
 
 **Examples:**
 ```json
@@ -242,6 +242,28 @@ All tools return **only the `identifier` by default**. Use `responseProperties` 
 
 // After write operations: omit responseProperties entirely — only identifier is needed
 ```
+
+---
+
+## Internal node flags
+
+The write tools (`create_node`, `update_property`, `batch_update_property`) accept the following internal flags in place of a property name. They are mapped to the corresponding node setters instead of being stored as regular properties:
+
+| Flag | Value | Effect |
+|------|-------|--------|
+| `_hidden` | boolean | Hide the node (`setHidden()`) |
+| `_hiddenInIndex` | boolean | Hide the node in menus (`setHiddenInIndex()`) |
+| `_hiddenBeforeDateTime` | ISO 8601 string or `null` | Hide before date/time (`setHiddenBeforeDateTime()`) |
+| `_hiddenAfterDateTime` | ISO 8601 string or `null` | Hide after date/time (`setHiddenAfterDateTime()`) |
+
+Any other `_`-prefixed name is rejected with an error. Invalid values (e.g. a non-boolean for `_hidden`) are rejected as well; with `create_node` and `update_property` nothing is written in that case, with `batch_update_property` the affected node is skipped and reported in `errors`.
+
+```jsonc
+// Hide a page in menus
+{ "nodeIdentifier": "…", "propertyName": "_hiddenInIndex", "propertyValue": true, "workspaceName": "live" }
+```
+
+Read them back via the meta fields `hidden`, `hiddenInIndex`, `hiddenBeforeDateTime`, `hiddenAfterDateTime` in `responseProperties`.
 
 ---
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace KaufmannDigital\MCP\Tool;
 
+use KaufmannDigital\MCP\Utility\NodeFlagHandler;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
 use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\Flow\Annotations as Flow;
@@ -41,11 +42,17 @@ class BatchUpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
+    /**
+     * @Flow\Inject
+     * @var NodeFlagHandler
+     */
+    protected $nodeFlagHandler;
+
     public function getDefinition(): array
     {
         return [
             'name' => 'batch_update_property',
-            'description' => 'Set properties on multiple Neos nodes in a single call.',
+            'description' => 'Set properties on multiple Neos nodes in a single call. ' . NodeFlagHandler::DESCRIPTION,
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
@@ -56,7 +63,7 @@ class BatchUpdatePropertyTool implements ToolInterface
                             'type' => 'object',
                             'properties' => [
                                 'nodeIdentifier' => ['type' => 'string'],
-                                'properties' => ['type' => 'object', 'description' => 'Key-value map of properties to set'],
+                                'properties' => ['type' => 'object', 'description' => 'Key-value map of properties to set (may include internal flags like "_hidden", "_hiddenInIndex")'],
                             ],
                             'required' => ['nodeIdentifier', 'properties'],
                         ],
@@ -66,7 +73,7 @@ class BatchUpdatePropertyTool implements ToolInterface
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include per node in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path".',
+                        'description' => 'Fields to include per node in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime".',
                     ],
                 ],
                 'required' => ['nodes', 'workspaceName'],
@@ -110,7 +117,23 @@ class BatchUpdatePropertyTool implements ToolInterface
                     continue;
                 }
 
+                $flags = [];
+                try {
+                    foreach ($properties as $name => $value) {
+                        if ($this->nodeFlagHandler->isInternalName((string)$name)) {
+                            $flags[$name] = $this->nodeFlagHandler->normalize((string)$name, $value);
+                        }
+                    }
+                } catch (\InvalidArgumentException $e) {
+                    $errors[] = $nodeIdentifier . ': ' . $e->getMessage();
+                    continue;
+                }
+
                 foreach ($properties as $name => $value) {
+                    if (array_key_exists($name, $flags)) {
+                        $this->nodeFlagHandler->apply($node, (string)$name, $flags[$name]);
+                        continue;
+                    }
                     $value = $this->propertyValueResolver->resolve($name, $value, $node->getNodeType());
                     $node->setProperty($name, $value);
                 }

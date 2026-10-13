@@ -37,6 +37,9 @@ class NodeSerializer
             'name' => $node->getName(),
             'depth' => $node->getDepth(),
             'hidden' => $node->isHidden(),
+            'hiddenInIndex' => $node->isHiddenInIndex(),
+            'hiddenBeforeDateTime' => $node->getHiddenBeforeDateTime()?->format(\DateTimeInterface::ATOM),
+            'hiddenAfterDateTime' => $node->getHiddenAfterDateTime()?->format(\DateTimeInterface::ATOM),
             'workspace' => $node->getWorkspace()->getName(),
             'dimensions' => $node->getDimensions(),
             'properties' => $this->serializeProperties($node),
@@ -85,7 +88,8 @@ class NodeSerializer
      * By default (responseProperties = null or []) only "identifier" is returned.
      * Pass an array of field names to include additional data:
      *   - Node property names: "title", "releaseDate", "uriPathSegment", etc.
-     *   - Meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden"
+     *   - Meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "hiddenInIndex",
+     *     "hiddenBeforeDateTime", "hiddenAfterDateTime" (the flags are also accessible with "_" prefix, e.g. "_hidden")
      */
     public function serializeNodeFiltered(NodeInterface $node, array|string|null $responseProperties): array
     {
@@ -104,6 +108,9 @@ class NodeSerializer
             'path'         => fn() => $node->getPath(),
             'workspace'    => fn() => $node->getWorkspace()->getName(),
             'hidden'       => fn() => $node->isHidden(),
+            'hiddenInIndex' => fn() => $node->isHiddenInIndex(),
+            'hiddenBeforeDateTime' => fn() => $node->getHiddenBeforeDateTime()?->format(\DateTimeInterface::ATOM),
+            'hiddenAfterDateTime' => fn() => $node->getHiddenAfterDateTime()?->format(\DateTimeInterface::ATOM),
             'creationDate' => fn() => $node->getCreationDateTime()?->format(\DateTimeInterface::ATOM),
         ];
         if (in_array('*', $responseProperties, true)) {
@@ -118,6 +125,9 @@ class NodeSerializer
         foreach ($responseProperties as $field) {
             if (isset($metaFields[$field])) {
                 $result[$field] = ($metaFields[$field])();
+            } elseif (str_starts_with($field, '_') && isset($metaFields[substr($field, 1)])) {
+                // Internal flag names as used by the write tools, e.g. "_hidden", "_hiddenInIndex"
+                $result[$field] = ($metaFields[substr($field, 1)])();
             } else {
                 $result[$field] = $this->serializeValue($node->getProperty($field));
             }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace KaufmannDigital\MCP\Tool;
 
+use KaufmannDigital\MCP\Utility\NodeFlagHandler;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
 use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\Flow\Annotations as Flow;
@@ -41,23 +42,29 @@ class UpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
+    /**
+     * @Flow\Inject
+     * @var NodeFlagHandler
+     */
+    protected $nodeFlagHandler;
+
     public function getDefinition(): array
     {
         return [
             'name' => 'update_property',
-            'description' => 'Set a single property on a Neos node.',
+            'description' => 'Set a single property on a Neos node. ' . NodeFlagHandler::DESCRIPTION,
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the node to update'],
-                    'propertyName' => ['type' => 'string', 'description' => 'Property name to set'],
+                    'propertyName' => ['type' => 'string', 'description' => 'Property name to set, or an internal flag: "_hidden", "_hiddenInIndex", "_hiddenBeforeDateTime", "_hiddenAfterDateTime"'],
                     'propertyValue' => ['description' => 'New property value'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to write to (e.g. "live" or a user workspace name)'],
                     'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path".',
+                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime".',
                     ],
                 ],
                 'required' => ['nodeIdentifier', 'propertyName', 'propertyValue', 'workspaceName'],
@@ -82,9 +89,23 @@ class UpdatePropertyTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Node not found: ' . $args['nodeIdentifier']]];
         }
 
+        $isFlag = $this->nodeFlagHandler->isInternalName($args['propertyName']);
+        $flagValue = null;
+        if ($isFlag) {
+            try {
+                $flagValue = $this->nodeFlagHandler->normalize($args['propertyName'], $args['propertyValue'] ?? null);
+            } catch (\InvalidArgumentException $e) {
+                return [['type' => 'text', 'text' => 'Error: ' . $e->getMessage()]];
+            }
+        }
+
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($node, $args) {
+        $securityContext->withoutAuthorizationChecks(function () use ($node, $args, $isFlag, $flagValue) {
+            if ($isFlag) {
+                $this->nodeFlagHandler->apply($node, $args['propertyName'], $flagValue);
+                return;
+            }
             $value = $this->propertyValueResolver->resolve($args['propertyName'], $args['propertyValue'], $node->getNodeType());
             $node->setProperty($args['propertyName'], $value);
         });
