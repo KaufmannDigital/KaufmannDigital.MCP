@@ -201,21 +201,23 @@ Deletes a node by UUID.
 ---
 
 ### `update_property`
-Sets a single property on a node.
+Sets a single property on a node. The response always contains the updated property as it was persisted (the node is re-read after saving), so a value that did not stick is immediately visible.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `nodeIdentifier` | string | ✓ | Node UUID |
 | `propertyName` | string | ✓ | Property name, or an [internal node flag](#internal-node-flags) like `_hidden` |
-| `propertyValue` | any | ✓ | New value |
+| `propertyValue` | any | ✓ | New value (see [Reference properties](#reference-properties)) |
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["en"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
-| `responseProperties` | array | | Fields to return (default: `identifier` only) |
+| `responseProperties` | array | | Additional fields to return (default: `identifier` + the updated property) |
+
+Response: `{"updated": {…}, "warnings": [...]}` — `warnings` is only present if e.g. a referenced node does not exist in the target workspace/dimension. Invalid values (e.g. a malformed node identifier or flag value) return an `Error: …` message and leave the node unchanged.
 
 ---
 
 ### `batch_update_property`
-Sets properties on multiple nodes in a single call.
+Sets properties on multiple nodes in a single call. Uses the same write path as `update_property`; the returned nodes are re-read after saving.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -223,6 +225,11 @@ Sets properties on multiple nodes in a single call.
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the nodes in, e.g. `{"language":["en"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields per node (default: `identifier` only) |
+
+Response: `{"updatedCount": n, "updated": [...], "errors": [...], "warnings": [...]}`. A node with an invalid value is skipped entirely (none of its properties are written) and reported in `errors`; `warnings` is only present when needed.
+
+#### Reference properties
+For properties of type `references` pass an array of node identifiers, e.g. `["a1b2…", "c3d4…"]`; `[]` or `null` clears the property. A JSON-encoded array string (`"[\"a1b2…\"]"`) or a single identifier string is accepted as well. For type `reference` pass a single identifier (a one-element array is accepted too); `null` clears it.
 
 ---
 
@@ -364,7 +371,8 @@ The node-resolving tools (`get_node`, `get_children`, `create_node`, `delete_nod
 McpController
   └── McpHandler          JSON-RPC dispatcher
         └── Tool/*        One class per operation (Flow Singletons)
-              └── NodeSerializer   Shared node serialization
+              ├── NodeSerializer       Shared node serialization
+              └── NodePropertyWriter   Shared write path (resolve, set, persist, re-read)
 ```
 
 - **All tools** run without Flow authorization checks: `McpHandler` wraps every tool execution in `SecurityContext::withoutAuthorizationChecks()`, so read tools can access non-live workspaces as well

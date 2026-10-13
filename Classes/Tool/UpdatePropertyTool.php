@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace KaufmannDigital\MCP\Tool;
 
 use KaufmannDigital\MCP\Utility\NodeFlagHandler;
+use KaufmannDigital\MCP\Utility\NodePropertyWriter;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
-use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\Flow\Annotations as Flow;
-use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Neos\Domain\Service\ContentContextFactory;
 
 /**
@@ -26,45 +25,33 @@ class UpdatePropertyTool implements ToolInterface
 
     /**
      * @Flow\Inject
-     * @var PersistenceManagerInterface
-     */
-    protected $persistenceManager;
-
-    /**
-     * @Flow\Inject
      * @var NodeSerializer
      */
     protected $nodeSerializer;
 
     /**
      * @Flow\Inject
-     * @var PropertyValueResolver
+     * @var NodePropertyWriter
      */
-    protected $propertyValueResolver;
-
-    /**
-     * @Flow\Inject
-     * @var NodeFlagHandler
-     */
-    protected $nodeFlagHandler;
+    protected $nodePropertyWriter;
 
     public function getDefinition(): array
     {
         return [
             'name' => 'update_property',
-            'description' => 'Set a single property on a Neos node. ' . NodeFlagHandler::DESCRIPTION,
+            'description' => 'Set a single property on a Neos node. The response contains the property as persisted (re-read after saving). ' . NodeFlagHandler::DESCRIPTION,
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the node to update'],
                     'propertyName' => ['type' => 'string', 'description' => 'Property name to set, or an internal flag: "_hidden", "_hiddenInIndex", "_hiddenBeforeDateTime", "_hiddenAfterDateTime"'],
-                    'propertyValue' => ['description' => 'New property value'],
+                    'propertyValue' => ['description' => 'New property value. For "references" properties pass an array of node identifiers, for "reference" properties a single node identifier.'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to write to (e.g. "live" or a user workspace name)'],
                     'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime", "parentIdentifier", "ancestors". Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
+                        'description' => 'Fields to include in the response. Default: "identifier" and the updated property. Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime", "parentIdentifier", "ancestors". Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
                     ],
                 ],
                 'required' => ['nodeIdentifier', 'propertyName', 'propertyValue', 'workspaceName'],
@@ -89,31 +76,33 @@ class UpdatePropertyTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Node not found: ' . $args['nodeIdentifier']]];
         }
 
-        $isFlag = $this->nodeFlagHandler->isInternalName($args['propertyName']);
-        $flagValue = null;
-        if ($isFlag) {
-            try {
-                $flagValue = $this->nodeFlagHandler->normalize($args['propertyName'], $args['propertyValue'] ?? null);
-            } catch (\InvalidArgumentException $e) {
-                return [['type' => 'text', 'text' => 'Error: ' . $e->getMessage()]];
-            }
-        }
-
+        $warnings = [];
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($node, $args, $isFlag, $flagValue) {
-            if ($isFlag) {
-                $this->nodeFlagHandler->apply($node, $args['propertyName'], $flagValue);
-                return;
-            }
-            $value = $this->propertyValueResolver->resolve($args['propertyName'], $args['propertyValue'], $node->getNodeType());
-            $node->setProperty($args['propertyName'], $value);
-        });
-        $this->persistenceManager->persistAll();
+        try {
+            $securityContext->withoutAuthorizationChecks(function () use ($node, $args, &$warnings) {
+                $warnings = $this->nodePropertyWriter->setProperties($node, [$args['propertyName'] => $args['propertyValue'] ?? null]);
+            });
+        } catch (\InvalidArgumentException $e) {
+            return [['type' => 'text', 'text' => 'Error: ' . $e->getMessage()]];
+        }
 
-        return [['type' => 'text', 'text' => json_encode(
-            ['updated' => $this->nodeSerializer->serializeNodeFiltered($node, $args['responseProperties'] ?? null)],
-            JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
-        )]];
+        $node = $this->nodePropertyWriter->persistAndReload($context, [$args['nodeIdentifier']])[$args['nodeIdentifier']];
+        if ($node === null) {
+            return [['type' => 'text', 'text' => 'Error: node ' . $args['nodeIdentifier'] . ' could not be re-read after saving']];
+        }
+
+        $responseProperties = $args['responseProperties'] ?? null;
+        if (is_string($responseProperties)) {
+            $responseProperties = json_decode($responseProperties, true) ?: null;
+        }
+        $responseProperties = array_values(array_unique(array_merge((array)($responseProperties ?? []), [$args['propertyName']])));
+
+        $result = ['updated' => $this->nodeSerializer->serializeNodeFiltered($node, $responseProperties)];
+        if ($warnings !== []) {
+            $result['warnings'] = $warnings;
+        }
+
+        return [['type' => 'text', 'text' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)]];
     }
 }
