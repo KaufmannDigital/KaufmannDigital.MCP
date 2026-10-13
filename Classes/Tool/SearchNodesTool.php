@@ -78,7 +78,8 @@ class SearchNodesTool implements ToolInterface
 
         $sitesNode = $context->getNode('/sites');
         if ($sitesNode === null) {
-            return [['type' => 'text', 'text' => 'Error: /sites node not found']];
+            return [['type' => 'text', 'text' => 'Error: /sites node not found'
+                . (empty($args['dimensions']) ? '' : ' in the requested dimensions ' . (is_string($args['dimensions']) ? $args['dimensions'] : json_encode($args['dimensions'], JSON_UNESCAPED_UNICODE)) . ' — no content exists in these dimensions')]];
         }
 
         /** @var ElasticSearchQueryBuilder $qb */
