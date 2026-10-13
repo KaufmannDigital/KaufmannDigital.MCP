@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace KaufmannDigital\MCP\Tool;
 
+use KaufmannDigital\MCP\Utility\NodePropertyWriter;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
-use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\Flow\Annotations as Flow;
-use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Neos\Domain\Service\ContentContextFactory;
 
 /**
@@ -25,27 +24,21 @@ class BatchUpdatePropertyTool implements ToolInterface
 
     /**
      * @Flow\Inject
-     * @var PersistenceManagerInterface
-     */
-    protected $persistenceManager;
-
-    /**
-     * @Flow\Inject
      * @var NodeSerializer
      */
     protected $nodeSerializer;
 
     /**
      * @Flow\Inject
-     * @var PropertyValueResolver
+     * @var NodePropertyWriter
      */
-    protected $propertyValueResolver;
+    protected $nodePropertyWriter;
 
     public function getDefinition(): array
     {
         return [
             'name' => 'batch_update_property',
-            'description' => 'Set properties on multiple Neos nodes in a single call.',
+            'description' => 'Set properties on multiple Neos nodes in a single call. The response reflects the persisted state (re-read after saving).',
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
@@ -89,17 +82,21 @@ class BatchUpdatePropertyTool implements ToolInterface
             'inaccessibleContentShown' => true,
         ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
-        $updated = [];
+        $updatedIdentifiers = [];
         $errors = [];
+        $warnings = [];
 
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($context, $args, &$updated, &$errors) {
+        $securityContext->withoutAuthorizationChecks(function () use ($context, $args, &$updatedIdentifiers, &$errors, &$warnings) {
             foreach ($args['nodes'] as $nodeArgs) {
                 $nodeIdentifier = $nodeArgs['nodeIdentifier'] ?? null;
                 $properties = $nodeArgs['properties'] ?? [];
+                if (is_string($properties)) {
+                    $properties = json_decode($properties, true) ?: [];
+                }
 
-                if (empty($nodeIdentifier) || empty($properties)) {
+                if (empty($nodeIdentifier) || empty($properties) || !is_array($properties)) {
                     $errors[] = 'Skipped entry: missing nodeIdentifier or properties';
                     continue;
                 }
@@ -110,20 +107,31 @@ class BatchUpdatePropertyTool implements ToolInterface
                     continue;
                 }
 
-                foreach ($properties as $name => $value) {
-                    $value = $this->propertyValueResolver->resolve($name, $value, $node->getNodeType());
-                    $node->setProperty($name, $value);
+                try {
+                    $warnings = array_merge($warnings, $this->nodePropertyWriter->setProperties($node, $properties));
+                } catch (\InvalidArgumentException $e) {
+                    $errors[] = 'Node ' . $nodeIdentifier . ': ' . $e->getMessage();
+                    continue;
                 }
 
-                $updated[] = $this->nodeSerializer->serializeNodeFiltered($node, $args['responseProperties'] ?? null);
+                $updatedIdentifiers[] = $nodeIdentifier;
             }
         });
 
-        $this->persistenceManager->persistAll();
+        $updated = [];
+        foreach ($this->nodePropertyWriter->persistAndReload($context, array_values(array_unique($updatedIdentifiers))) as $nodeIdentifier => $node) {
+            if ($node === null) {
+                $errors[] = 'Node ' . $nodeIdentifier . ' could not be re-read after saving';
+                continue;
+            }
+            $updated[] = $this->nodeSerializer->serializeNodeFiltered($node, $args['responseProperties'] ?? null);
+        }
 
-        return [['type' => 'text', 'text' => json_encode(
-            ['updatedCount' => count($updated), 'updated' => $updated, 'errors' => $errors],
-            JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
-        )]];
+        $result = ['updatedCount' => count($updated), 'updated' => $updated, 'errors' => $errors];
+        if ($warnings !== []) {
+            $result['warnings'] = $warnings;
+        }
+
+        return [['type' => 'text', 'text' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)]];
     }
 }
