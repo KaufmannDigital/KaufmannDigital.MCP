@@ -134,16 +134,88 @@ Returns direct child nodes of a given node.
 ---
 
 ### `create_node`
-Creates a new node under a given parent node.
+Creates a new node — appended as last child of a parent node, or directly before/after a sibling node.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `parentNodeIdentifier` | string | ✓ | Parent node UUID |
+| `parentNodeIdentifier` | string | (✓) | Parent node UUID — required for position `into`; optional for `before`/`after` (if given, it must be the sibling's parent) |
 | `nodeType` | string | ✓ | Node type name, e.g. `Neos.Neos:Document` |
 | `properties` | object | | Key/value map of properties to set |
+| `nodeName` | string | | Node name (path segment). Default: random `node-…`. If invalid or already taken below the parent, another name is used and a [warning](#write-side-effects--warnings) is returned |
+| `position` | string | | `into` (default): append as last child of `parentNodeIdentifier`. `before` / `after`: insert as sibling of `siblingNodeIdentifier` |
+| `siblingNodeIdentifier` | string | | Sibling node UUID — required for `before` / `after` |
+| `applyDefaults` | boolean | | Apply NodeType default values (default: `true`). `false`: the defaults Neos sets in `createNode()` are removed again from the new node **and its tethered child nodes**, so only explicitly passed properties are stored (useful for exact copies). Internal `_`-properties (e.g. `_hidden`) are not affected; document nodes still get a `uriPathSegment` |
 | `workspaceName` | string | | Workspace (default: `live`) |
 | `dimensions` | object | | Content dimensions to create the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
+
+Response: `{"created": {…}, "warnings": [...]}` (`warnings` only if something was adjusted).
+
+---
+
+### `batch_create_nodes`
+Creates multiple nodes — optionally whole nested trees — in a single call. Every item is processed independently: a failing item gets an `error` in its result and does not abort the batch (its children are skipped and counted in `skippedChildren`).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodes` | array | ✓ | Items to create, in order (see below) |
+| `workspaceName` | string | | Workspace (default: `live`) |
+| `applyDefaults` | boolean | | Default for all items (default: `true`), see `create_node` |
+| `dimensions` | object | | Content dimensions (see [Content Dimensions](#content-dimensions)) |
+| `responseProperties` | array | | Fields per created node (default: `identifier` only) |
+
+Item fields: `nodeType` (required), `nodeName`, `properties`, `applyDefaults`, `children` and
+- top-level items: `parentNodeIdentifier` / `position` / `siblingNodeIdentifier` (same as `create_node`)
+- nested items (inside `children`): always appended in order into the created parent item, or into a descendant of it given by `parentPath` (relative path, e.g. `"main"` for a tethered content collection, `"column0"`)
+
+```jsonc
+{
+  "nodes": [{
+    "parentNodeIdentifier": "…", "nodeType": "KaufmannDigital.Nova.Core:Page.NovaPage", "nodeName": "about",
+    "properties": {"title": "About"},
+    "children": [{
+      "parentPath": "main", "nodeType": "KaufmannDigital.Nova.NodeTypes.Section:Molecule.Section",
+      "children": [{"nodeType": "KaufmannDigital.Nova.NodeTypes.Headline:Atom.Headline", "properties": {"headline": "Hello"}}]
+    }]
+  }]
+}
+```
+
+Response: `{"createdCount": n, "errorCount": n, "results": [{"index": 0, "identifier": "…", "warnings": [...], "children": [...]}, {"index": 1, "error": "…"}]}` — results mirror the input structure.
+
+---
+
+### `copy_node`
+Copies a node including its whole subtree (`Node::copyInto/copyBefore/copyAfter`). Node names, properties, internal flags (e.g. hidden) and order inside the subtree are kept; the copies get new identifiers. For document nodes Neos keeps the `uriPathSegment` unique among the new siblings.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeIdentifier` | string | ✓ | UUID of the node to copy |
+| `targetNodeIdentifier` | string | ✓ | New parent (`into`) or sibling (`before` / `after`) |
+| `position` | string | | `into` (default, appended as last child), `before`, `after` |
+| `nodeName` | string | | Node name of the copy (default: the source node's name; if taken below the new parent a random name is used + warning) |
+| `workspaceName` | string | | Workspace (default: `live`) |
+| `dimensions` | object | | Content dimensions (see [Content Dimensions](#content-dimensions)) |
+| `responseProperties` | array | | Fields of the copied root node (default: `identifier` only) |
+
+Response: `{"copied": {…}, "warnings": [...]}` — warns if the node name or the `uriPathSegment` differ from the source/requested value.
+
+---
+
+### `move_node`
+Moves a node including its subtree (`Node::moveInto/moveBefore/moveAfter`); also used to reorder siblings. Identifiers stay the same. When a document node is moved to a new parent, Neos keeps its `uriPathSegment` unique.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeIdentifier` | string | ✓ | UUID of the node to move |
+| `targetNodeIdentifier` | string | ✓ | New parent (`into`) or sibling (`before` / `after`) |
+| `position` | string | | `into` (default, appended as last child — also within the current parent), `before`, `after` |
+| `nodeName` | string | | New node name (default: keep the current name; if taken below the new parent a random name is used + warning) |
+| `workspaceName` | string | | Workspace (default: `live`) |
+| `dimensions` | object | | Content dimensions (see [Content Dimensions](#content-dimensions)) |
+| `responseProperties` | array | | Fields of the moved node (default: `identifier` only) |
+
+Response: `{"moved": {…}, "warnings": [...]}`.
 
 ---
 
@@ -172,6 +244,8 @@ Sets a single property on a node.
 | `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
 
+Response: `{"updated": {…}, "warnings": [...]}` — `warnings` only if the stored value differs from the requested one (e.g. `uriPathSegment` `home` → `home-1`), see [Write side effects](#write-side-effects--warnings).
+
 ---
 
 ### `batch_update_property`
@@ -183,6 +257,39 @@ Sets properties on multiple nodes in a single call.
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the nodes in, e.g. `{"language":["de_DE"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields per node (default: `identifier` only) |
+
+Response: `{"updatedCount": n, "updated": [...], "errors": [...], "warnings": [...]}` — `warnings` (with `nodeIdentifier`) only if a stored value differs from the requested one, see [Write side effects](#write-side-effects--warnings).
+
+---
+
+### `get_node_type`
+Returns the effective (merged) configuration of a NodeType — use it to find out which properties a node *can* have (`get_node` only returns stored values).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeType` | string | ✓ | Node type name |
+| `includeInternalProperties` | boolean | | Include `_`-prefixed internal properties like `_hidden` (default: `false`) |
+| `includeAllowedChildNodeTypes` | boolean | | Resolve constraints into concrete (non-abstract) NodeType lists: `allowedChildNodeTypes` and `childNodes.<name>.allowedChildNodeTypes` (default: `false`) |
+
+Response fields: `name`, `label`, `abstract`, `final`, `superTypes` (direct), `allSuperTypes` (transitive), `aggregate`, `isDocument`, `isContent`, `properties` (per property: `type`, `defaultValue`, `label`, inspector `group` / `editor`, `validation` — only keys that are configured), `childNodes` (tethered child nodes: `type`, effective `constraints`), `constraints`. Labels are translated if they are i18n ids.
+
+---
+
+### `list_node_types`
+Lists the available NodeTypes — for discovering a project without knowing its code. Compact by default; filters can be combined.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `superType` | string | | Only NodeTypes of this type (transitively), e.g. `Neos.Neos:Document`, `Neos.Neos:Content` |
+| `search` | string | | Case-insensitive substring match on name and (translated) label |
+| `namePrefix` | string | | Only NodeTypes whose name starts with this prefix, e.g. `KaufmannDigital.Nova.` |
+| `includeAbstract` | boolean | | Include abstract NodeTypes / mixins (default: `false`) |
+| `detailed` | boolean | | Full `get_node_type` structure per entry (default: `false`) |
+| `allowedUnderNodeIdentifier` | string | | Only NodeTypes that may be created directly below this existing node (constraints incl. tethered-node constraints are resolved). The response then also contains `allowedUnder` with the node's `tetheredChildNodes` (e.g. `main`) — content usually has to be created inside those |
+| `workspaceName` | string | | Workspace for `allowedUnderNodeIdentifier` (default: `live`) |
+| `dimensions` | object | | Content dimensions for `allowedUnderNodeIdentifier` |
+
+Response: `{"count": n, "nodeTypes": [{"name", "label", "abstract", "final", "superTypes"}, …]}` (+ `allowedUnder`).
 
 ---
 
@@ -245,9 +352,23 @@ All tools return **only the `identifier` by default**. Use `responseProperties` 
 
 ---
 
+## Write side effects / warnings
+
+Neos adjusts some values on write — e.g. it makes the `uriPathSegment` of document nodes unique among its siblings (`home` → `home-1`), or a requested node name may already be taken. Write tools (`create_node`, `batch_create_nodes`, `update_property`, `batch_update_property`, `copy_node`, `move_node`) report this in a `warnings` array instead of silently returning success:
+
+```json
+"warnings": [
+  {"field": "uriPathSegment", "requested": "home", "stored": "home-1", "message": "…"}
+]
+```
+
+`field` is a property name or `nodeName`. Only scalar values are compared (objects like assets, dates or references are converted by Neos and not reported). The key is omitted when nothing was adjusted.
+
+---
+
 ## Content Dimensions
 
-The node-resolving tools (`get_node`, `get_children`, `create_node`, `delete_node`, `update_property`, `batch_update_property`) build their `ContentContext` from the site's content dimension configuration.
+The node-resolving tools (`get_node`, `get_children`, `create_node`, `batch_create_nodes`, `copy_node`, `move_node`, `delete_node`, `update_property`, `batch_update_property`, `list_node_types` with `allowedUnderNodeIdentifier`) build their `ContentContext` from the site's content dimension configuration.
 
 - **No `dimensions` argument (default):** the tools do **not** set any dimensions, so the `ContentContextFactory` automatically applies the configured `Neos.ContentRepository.contentDimensions` defaults (e.g. `language` → its `default` preset). This means you get the site's primary dimension out of the box without any package configuration.
 - **Explicit `dimensions` override:** pass an object mapping each dimension to its value(s), e.g. `{"language":["en_DE"]}`, to resolve nodes in another dimension. `targetDimensions` are derived automatically from the first value of each dimension.
