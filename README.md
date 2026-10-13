@@ -232,16 +232,43 @@ Updates metadata fields of an existing asset, identified by its asset identifier
 All tools return **only the `identifier` by default**. Use `responseProperties` to request additional fields — keeping this minimal significantly reduces AI context usage.
 
 **Available values:**
-- Node properties: any property name defined on the node type, e.g. `"title"`, `"releaseDate"`, `"uriPathSegment"`
-- Meta fields: `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`
+- Meta fields (returned **top-level**): `"identifier"`, `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"creationDate"`
+- Node properties (returned in a nested **`properties`** object): any property name defined on the node type, e.g. `"title"`, `"releaseDate"`, `"uriPathSegment"`. To request a node property whose name collides with a meta field, prefix it with `properties.` (e.g. `"properties.identifier"`).
+- `"*"`: all meta fields plus all node properties
+
+Requested names that are neither a meta field nor a property declared on the node type (or stored on the node) are listed in an `unknownProperties` array instead of being returned as `null`.
 
 **Examples:**
 ```json
 // Search: request title and date for identification
-"responseProperties": ["title", "releaseDate"]
+"responseProperties": ["nodeType", "title", "releaseDate", "titel"]
+
+// Response
+{
+  "identifier": "8d3c…",
+  "nodeType": "Vendor:Document.BlogPost",
+  "properties": { "title": "Hello world", "releaseDate": "2024-05-01T00:00:00+00:00" },
+  "unknownProperties": ["titel"]
+}
 
 // After write operations: omit responseProperties entirely — only identifier is needed
 ```
+
+> **Breaking change:** Node properties used to be merged into the top-level object next to the meta fields, so a property named e.g. `identifier`, `name` or `path` overwrote the corresponding meta field. They are now always returned in the nested `properties` object.
+
+**Property value formats:**
+
+| Value | Serialized as |
+|---|---|
+| Scalars / `null` | as is |
+| `DateTime` | ISO 8601 string |
+| Image | `{"__type": "Image", "identifier": "…", "url": "…", "filename": "…"}` |
+| Asset | `{"__type": "Asset", "identifier": "…", "url": "…", "filename": "…"}` |
+| Node (`reference` / `references`) | `{"__type": "Node", "identifier": "…", "path": "…", "nodeType": "…"}` — the `identifier` can be written back directly |
+| Arrays | each item serialized as above |
+| Other objects | `{"__type": "<class>", "__string": "…"}` |
+
+Serialization errors are reported per property instead of failing the whole request: a property that cannot be read is returned as `{"__type": "Error", "error": "…"}`; if only the URL of an image/asset cannot be generated, the value is returned with `"url": null` and an `"error"` field.
 
 ---
 

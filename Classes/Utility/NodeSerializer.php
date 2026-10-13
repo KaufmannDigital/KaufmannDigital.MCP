@@ -64,10 +64,23 @@ class NodeSerializer
     private function serializeProperties(NodeInterface $node): array
     {
         $properties = [];
-        foreach ($node->getProperties() as $name => $value) {
-            $properties[$name] = $this->serializeValue($value);
+        foreach ($node->getPropertyNames() as $name) {
+            $properties[$name] = $this->serializeProperty($node, (string)$name);
         }
         return $properties;
+    }
+
+    /**
+     * Serialize a single node property. Errors are caught per property so that one failing
+     * property does not abort the serialization of the whole node (or node list).
+     */
+    private function serializeProperty(NodeInterface $node, string $propertyName): mixed
+    {
+        try {
+            return $this->serializeValue($node->getProperty($propertyName));
+        } catch (\Throwable $e) {
+            return ['__type' => 'Error', 'error' => $e->getMessage()];
+        }
     }
 
     private function serializeChildren(NodeInterface $node): array
@@ -84,8 +97,11 @@ class NodeSerializer
      *
      * By default (responseProperties = null or []) only "identifier" is returned.
      * Pass an array of field names to include additional data:
-     *   - Node property names: "title", "releaseDate", "uriPathSegment", etc.
-     *   - Meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden"
+     *   - Meta-fields (returned top-level): "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate"
+     *   - Node property names (returned in a nested "properties" object): "title", "releaseDate", etc.
+     *     Prefix with "properties." to request a property whose name collides with a meta-field (e.g. "properties.identifier").
+     *   - "*" returns all meta-fields and all node properties.
+     * Requested names that are neither meta-fields nor declared/stored node properties are listed in "unknownProperties".
      */
     public function serializeNodeFiltered(NodeInterface $node, array|string|null $responseProperties): array
     {
@@ -110,17 +126,30 @@ class NodeSerializer
             foreach ($metaFields as $field => $resolver) {
                 $result[$field] = $resolver();
             }
-            foreach ($node->getProperties() as $name => $value) {
-                $result[$name] = $this->serializeValue($value);
-            }
+            $result['properties'] = $this->serializeProperties($node);
             return $result;
         }
+        $properties = [];
+        $unknownProperties = [];
+        $declaredProperties = $node->getNodeType()->getProperties();
         foreach ($responseProperties as $field) {
+            $field = (string)$field;
             if (isset($metaFields[$field])) {
                 $result[$field] = ($metaFields[$field])();
-            } else {
-                $result[$field] = $this->serializeValue($node->getProperty($field));
+                continue;
             }
+            $propertyName = str_starts_with($field, 'properties.') ? substr($field, strlen('properties.')) : $field;
+            if (array_key_exists($propertyName, $declaredProperties) || $node->hasProperty($propertyName)) {
+                $properties[$propertyName] = $this->serializeProperty($node, $propertyName);
+            } else {
+                $unknownProperties[] = $field;
+            }
+        }
+        if ($properties !== []) {
+            $result['properties'] = $properties;
+        }
+        if ($unknownProperties !== []) {
+            $result['unknownProperties'] = $unknownProperties;
         }
         return $result;
     }
@@ -133,15 +162,14 @@ class NodeSerializer
         if ($value instanceof \DateTimeInterface) {
             return $value->format(\DateTimeInterface::ATOM);
         }
+        if ($value instanceof NodeInterface) {
+            return ['__type' => 'Node', 'identifier' => $value->getIdentifier(), 'path' => $value->getPath(), 'nodeType' => $value->getNodeType()->getName()];
+        }
         if ($value instanceof ImageInterface) {
-            $resource = method_exists($value, 'getResource') ? $value->getResource() : null;
-            $url = $resource ? $this->resourceManager->getPublicPersistentResourceUri($resource) : null;
-            return ['__type' => 'Image', 'identifier' => $this->persistenceManager->getIdentifierByObject($value), 'url' => $url, 'filename' => $resource?->getFilename()];
+            return $this->serializeAsset($value, 'Image');
         }
         if ($value instanceof Asset) {
-            $resource = $value->getResource();
-            $url = $resource ? $this->resourceManager->getPublicPersistentResourceUri($resource) : null;
-            return ['__type' => 'Asset', 'identifier' => $this->persistenceManager->getIdentifierByObject($value), 'filename' => $resource?->getFilename(), 'url' => $url];
+            return $this->serializeAsset($value, 'Asset');
         }
         if (is_array($value)) {
             return array_map(fn($v) => $this->serializeValue($v), $value);
@@ -150,5 +178,28 @@ class NodeSerializer
             return ['__type' => get_class($value), '__string' => method_exists($value, '__toString') ? (string)$value : null];
         }
         return $value;
+    }
+
+    /**
+     * Serialize an image or asset. Errors while resolving the resource/URL are reported in an "error" field
+     * instead of failing the whole request.
+     */
+    private function serializeAsset(object $asset, string $type): array
+    {
+        $result = [
+            '__type' => $type,
+            'identifier' => $this->persistenceManager->getIdentifierByObject($asset),
+            'filename' => null,
+            'url' => null,
+        ];
+        try {
+            $resource = method_exists($asset, 'getResource') ? $asset->getResource() : null;
+            $result['filename'] = $resource?->getFilename();
+            $result['url'] = $resource ? ($this->resourceManager->getPublicPersistentResourceUri($resource) ?: null) : null;
+        } catch (\Throwable $e) {
+            $result['url'] = null;
+            $result['error'] = $e->getMessage();
+        }
+        return $result;
     }
 }
