@@ -85,7 +85,11 @@ class NodeSerializer
      * By default (responseProperties = null or []) only "identifier" is returned.
      * Pass an array of field names to include additional data:
      *   - Node property names: "title", "releaseDate", "uriPathSegment", etc.
-     *   - Meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden"
+     *   - Meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate",
+     *     "parentIdentifier", "ancestors"
+     *
+     * "*" expands to all node properties and all meta-fields except "ancestors" (which walks the
+     * whole parent chain and would bloat list responses); request "ancestors" explicitly if needed.
      */
     public function serializeNodeFiltered(NodeInterface $node, array|string|null $responseProperties): array
     {
@@ -105,9 +109,14 @@ class NodeSerializer
             'workspace'    => fn() => $node->getWorkspace()->getName(),
             'hidden'       => fn() => $node->isHidden(),
             'creationDate' => fn() => $node->getCreationDateTime()?->format(\DateTimeInterface::ATOM),
+            'parentIdentifier' => fn() => $node->getParent()?->getIdentifier(),
+            'ancestors'    => fn() => $this->serializeAncestors($node),
         ];
         if (in_array('*', $responseProperties, true)) {
             foreach ($metaFields as $field => $resolver) {
+                if ($field === 'ancestors' && !in_array('ancestors', $responseProperties, true)) {
+                    continue;
+                }
                 $result[$field] = $resolver();
             }
             foreach ($node->getProperties() as $name => $value) {
@@ -123,6 +132,25 @@ class NodeSerializer
             }
         }
         return $result;
+    }
+
+    /**
+     * Ancestors of the node, ordered from the topmost ancestor (below the root node "/", i.e. "/sites")
+     * down to the direct parent. Each entry contains identifier, nodeType and name.
+     */
+    private function serializeAncestors(NodeInterface $node): array
+    {
+        $ancestors = [];
+        $parent = $node->getParent();
+        while ($parent !== null && $parent->getPath() !== '/') {
+            $ancestors[] = [
+                'identifier' => $parent->getIdentifier(),
+                'nodeType' => $parent->getNodeType()->getName(),
+                'name' => $parent->getName(),
+            ];
+            $parent = $parent->getParent();
+        }
+        return array_reverse($ancestors);
     }
 
     public function serializeValue(mixed $value): mixed

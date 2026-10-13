@@ -57,7 +57,7 @@ class UpdatePropertyTool implements ToolInterface
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path".',
+                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title") and/or meta-fields: "nodeType", "label", "name", "path", "parentIdentifier", "ancestors".',
                     ],
                 ],
                 'required' => ['nodeIdentifier', 'propertyName', 'propertyValue', 'workspaceName'],

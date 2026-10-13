@@ -233,12 +233,18 @@ All tools return **only the `identifier` by default**. Use `responseProperties` 
 
 **Available values:**
 - Node properties: any property name defined on the node type, e.g. `"title"`, `"releaseDate"`, `"uriPathSegment"`
-- Meta fields: `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`
+- Meta fields: `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"creationDate"`, `"parentIdentifier"`, `"ancestors"`
+  - `"parentIdentifier"`: UUID of the direct parent node (`null` for the root node) — use it e.g. as `parentNodeIdentifier` for `create_node` to create a sibling
+  - `"ancestors"`: array of `{identifier, nodeType, name}` from the topmost ancestor below the root node (`/sites`) down to the direct parent — useful to find the containing document (e.g. the first `Neos.Neos:Document` from the end)
+- `["*"]`: all node properties and all meta fields **except `"ancestors"`** (it walks the whole parent chain per node, which is costly for long result lists). Use `["*", "ancestors"]` to get both.
 
 **Examples:**
 ```json
 // Search: request title and date for identification
 "responseProperties": ["title", "releaseDate"]
+
+// Resolve the parent (e.g. to create a sibling) and the containing page
+"responseProperties": ["parentIdentifier", "ancestors"]
 
 // After write operations: omit responseProperties entirely — only identifier is needed
 ```
