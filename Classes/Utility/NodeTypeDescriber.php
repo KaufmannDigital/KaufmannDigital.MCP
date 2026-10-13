@@ -59,8 +59,8 @@ class NodeTypeDescriber
         $result['isDocument'] = $nodeType->isOfType('Neos.Neos:Document');
         $result['isContent'] = $nodeType->isOfType('Neos.Neos:Content');
         $result['properties'] = $this->describeProperties($nodeType, $includeInternalProperties);
-        $result['childNodes'] = $this->describeChildNodes($nodeType);
-        $result['constraints'] = $nodeType->getConfiguration('constraints.nodeTypes') ?: (object)[];
+        $result['childNodes'] = $this->describeChildNodes($nodeType) ?: (object)[];
+        $result['constraints'] = $this->cleanConstraints($nodeType->getConfiguration('constraints.nodeTypes'));
 
         return $result;
     }
@@ -118,6 +118,10 @@ class NodeTypeDescriber
             if (!is_array($configuration)) {
                 continue;
             }
+            // Search-index-only fields (e.g. "neos_fulltext" from Neos.ContentRepository.Search) are no real properties
+            if (!isset($configuration['type']) && str_starts_with($propertyName, 'neos_')) {
+                continue;
+            }
             $description = ['type' => $configuration['type'] ?? 'string'];
             if (array_key_exists('defaultValue', $configuration)) {
                 $description['defaultValue'] = $configuration['defaultValue'];
@@ -159,10 +163,24 @@ class NodeTypeDescriber
             );
             $childNodes[$childNodeName] = [
                 'type' => $childNodeType->getName(),
-                'constraints' => $constraints ?: (object)[],
+                'constraints' => $this->cleanConstraints($constraints),
             ];
         }
         return $childNodes;
+    }
+
+    /**
+     * Removes unset (null) entries, which only reset inherited constraints.
+     *
+     * @return array<string, bool>|object
+     */
+    protected function cleanConstraints(mixed $constraints): array|object
+    {
+        if (!is_array($constraints)) {
+            return (object)[];
+        }
+        $constraints = array_filter($constraints, fn($value) => $value !== null);
+        return $constraints ?: (object)[];
     }
 
     /**

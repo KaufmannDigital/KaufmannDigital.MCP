@@ -135,7 +135,7 @@ class CopyNodeTool implements ToolInterface
                 $copiedNode = match ($position) {
                     'before' => $node->copyBefore($targetNode, $nodeName),
                     'after' => $node->copyAfter($targetNode, $nodeName),
-                    default => $node->copyInto($targetNode, $nodeName),
+                    default => $this->copyIntoAsLastChild($node, $targetNode, $nodeName),
                 };
             });
         } catch (\Neos\ContentRepository\Exception $e) {
@@ -163,5 +163,21 @@ class CopyNodeTool implements ToolInterface
         }
 
         return [['type' => 'text', 'text' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)]];
+    }
+
+    /**
+     * Node::copyInto() keeps the source's sorting index, so the copy may end up anywhere
+     * among the new siblings — move it behind the current last child to append it.
+     */
+    protected function copyIntoAsLastChild(NodeInterface $node, NodeInterface $targetNode, string $nodeName): NodeInterface
+    {
+        $existingChildNodes = $targetNode->getChildNodes();
+        $lastChildNode = $existingChildNodes !== [] ? end($existingChildNodes) : null;
+
+        $copiedNode = $node->copyInto($targetNode, $nodeName);
+        if ($lastChildNode instanceof NodeInterface) {
+            $copiedNode->moveAfter($lastChildNode);
+        }
+        return $copiedNode;
     }
 }
