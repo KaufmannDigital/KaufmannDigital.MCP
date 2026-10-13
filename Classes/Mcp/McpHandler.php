@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace KaufmannDigital\MCP\Mcp;
 
 use KaufmannDigital\MCP\Tool\ToolInterface;
+use Neos\ContentRepository\Domain\Model\Workspace;
+use Neos\ContentRepository\Domain\Repository\WorkspaceRepository;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Log\Utility\LogEnvironment;
@@ -50,6 +52,12 @@ class McpHandler
      */
     protected $securityContext;
 
+    /**
+     * @Flow\Inject
+     * @var WorkspaceRepository
+     */
+    protected $workspaceRepository;
+
     private ?array $toolInstances = null;
 
     public function handle(array $data): array
@@ -91,6 +99,10 @@ class McpHandler
         $toolName = $params['name'] ?? '';
         foreach ($this->tools() as $tool) {
             if ($tool->getDefinition()['name'] === $toolName) {
+                $workspaceError = $this->validateWorkspace($params['arguments']['workspaceName'] ?? null);
+                if ($workspaceError !== null) {
+                    return ['content' => [['type' => 'text', 'text' => $workspaceError]], 'isError' => true];
+                }
                 try {
                     // Access is already guarded by IP allowlist + API token in the controller, so
                     // tools run without Flow authorization checks (e.g. reading non-live workspaces).
@@ -107,6 +119,26 @@ class McpHandler
             }
         }
         return ['content' => [['type' => 'text', 'text' => 'Unknown tool: ' . $toolName]], 'isError' => true];
+    }
+
+    /**
+     * Neos silently creates a workspace when a ContentContext is built for an unknown workspace name,
+     * so a typo would create a new workspace instead of failing. Reject unknown names up front.
+     */
+    private function validateWorkspace(mixed $workspaceName): ?string
+    {
+        if ($workspaceName === null || $workspaceName === '') {
+            return null;
+        }
+        if (!is_string($workspaceName)) {
+            return 'Invalid workspaceName: expected a string';
+        }
+        if ($this->workspaceRepository->findByIdentifier($workspaceName) !== null) {
+            return null;
+        }
+        $existing = array_map(fn(Workspace $workspace) => $workspace->getName(), $this->workspaceRepository->findAll()->toArray());
+        sort($existing);
+        return 'Workspace "' . $workspaceName . '" does not exist. Existing workspaces: ' . implode(', ', $existing);
     }
 
     private function tools(): array

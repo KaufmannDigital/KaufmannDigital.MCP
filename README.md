@@ -273,6 +273,7 @@ McpController
 ```
 
 - **All tools** run without Flow authorization checks: `McpHandler` wraps every tool execution in `SecurityContext::withoutAuthorizationChecks()`, so read tools can access non-live workspaces as well
+- A `workspaceName` that does not exist is rejected with an error listing the existing workspaces (Neos would otherwise silently create a new workspace for an unknown name)
 - **Asset resolution:** For properties typed as a `Neos\Media\Domain\Model\*` class or interface (e.g. `ImageInterface`), a UUID string is resolved to the Asset object via `AssetRepository::findByIdentifier()`. This handles interface-typed properties that `EntityManager::find()` cannot.
 - **DateTime resolution:** ISO-8601 strings are automatically converted to `DateTime` objects
 - **ElasticSearchQueryBuilder** is prototype-scoped — always instantiate via `$objectManager->get()` for a fresh instance per call
