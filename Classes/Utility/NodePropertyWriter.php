@@ -31,6 +31,12 @@ class NodePropertyWriter
 
     /**
      * @Flow\Inject
+     * @var PropertyAdjustmentDetector
+     */
+    protected $propertyAdjustmentDetector;
+
+    /**
+     * @Flow\Inject
      * @var PersistenceManagerInterface
      */
     protected $persistenceManager;
@@ -40,7 +46,8 @@ class NodePropertyWriter
      * and then sets them on the node. Internal flags ("_hidden", ...) are applied via NodeFlagHandler. Must be called inside withoutAuthorizationChecks().
      *
      * @param array<string, mixed> $properties
-     * @return string[] Warnings, e.g. for referenced nodes that are not visible in the node's context
+     * @return array<int, array<string, mixed>> Warnings ({field, message, …}), e.g. for referenced nodes that are not
+     *         visible in the node's context or values adjusted by Neos (uriPathSegment made unique)
      * @throws \InvalidArgumentException if a value cannot be converted to the property's type
      */
     public function setProperties(NodeInterface $node, array $properties): array
@@ -65,7 +72,7 @@ class NodePropertyWriter
             $node->setProperty((string)$name, $value);
             $warnings = array_merge($warnings, $this->unresolvableReferenceWarnings($node, (string)$name, $value));
         }
-        return $warnings;
+        return array_merge($warnings, $this->propertyAdjustmentDetector->detect($node, $resolved));
     }
 
     /**
@@ -89,7 +96,7 @@ class NodePropertyWriter
     }
 
     /**
-     * @return string[]
+     * @return array<int, array<string, mixed>>
      */
     private function unresolvableReferenceWarnings(NodeInterface $node, string $propertyName, mixed $value): array
     {
@@ -101,13 +108,14 @@ class NodePropertyWriter
         $warnings = [];
         foreach ((array)$value as $identifier) {
             if ($node->getContext()->getNodeByIdentifier($identifier) === null) {
-                $warnings[] = sprintf(
-                    'Property "%s" of node %s: referenced node %s does not exist in workspace "%s" / these dimensions; it is stored but will not be returned when reading the property.',
-                    $propertyName,
-                    $node->getIdentifier(),
-                    $identifier,
-                    $node->getContext()->getWorkspaceName()
-                );
+                $warnings[] = [
+                    'field' => $propertyName,
+                    'message' => sprintf(
+                        'Referenced node %s does not exist in workspace "%s" / these dimensions; it is stored but will not be returned when reading the property.',
+                        $identifier,
+                        $node->getContext()->getWorkspaceName()
+                    ),
+                ];
             }
         }
         return $warnings;

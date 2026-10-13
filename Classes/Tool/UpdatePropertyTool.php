@@ -39,7 +39,7 @@ class UpdatePropertyTool implements ToolInterface
     {
         return [
             'name' => 'update_property',
-            'description' => 'Set a single property on a Neos node. The response contains the property as persisted (re-read after saving). ' . NodeFlagHandler::DESCRIPTION,
+            'description' => 'Set a single property on a Neos node. The response contains the property as persisted (re-read after saving) and "warnings" if a stored value differs from the requested one (e.g. uriPathSegment made unique, referenced node not found). ' . NodeFlagHandler::DESCRIPTION,
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [

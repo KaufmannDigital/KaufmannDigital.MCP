@@ -39,7 +39,7 @@ class BatchUpdatePropertyTool implements ToolInterface
     {
         return [
             'name' => 'batch_update_property',
-            'description' => 'Set properties on multiple Neos nodes in a single call. The response reflects the persisted state (re-read after saving). ' . NodeFlagHandler::DESCRIPTION,
+            'description' => 'Set properties on multiple Neos nodes in a single call. The response reflects the persisted state (re-read after saving) and "warnings" if a stored value differs from the requested one (e.g. uriPathSegment made unique, referenced node not found). ' . NodeFlagHandler::DESCRIPTION,
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
@@ -109,7 +109,9 @@ class BatchUpdatePropertyTool implements ToolInterface
                 }
 
                 try {
-                    $warnings = array_merge($warnings, $this->nodePropertyWriter->setProperties($node, $properties));
+                    foreach ($this->nodePropertyWriter->setProperties($node, $properties) as $warning) {
+                        $warnings[] = ['nodeIdentifier' => $nodeIdentifier] + $warning;
+                    }
                 } catch (\InvalidArgumentException $e) {
                     $errors[] = 'Node ' . $nodeIdentifier . ': ' . $e->getMessage();
                     continue;
