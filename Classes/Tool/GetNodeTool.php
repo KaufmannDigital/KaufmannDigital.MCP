@@ -37,10 +37,7 @@ class GetNodeTool implements ToolInterface
                 'properties' => [
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'The UUID of the Neos node'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace name (default: live)'],
-                    'dimensions' => [
-                        'type' => 'object',
-                        'description' => 'Content dimensions to resolve the node in, e.g. {"language": ["de_DE"]}. Optional — defaults to the configured site default (language=de_DE). Override only to read other languages/countries.',
-                    ],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'includeChildren' => ['type' => 'boolean', 'description' => 'Include direct child nodes in the response (default: false)'],
                     'responseProperties' => [
                         'type' => 'array',

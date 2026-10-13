@@ -6,7 +6,6 @@ namespace KaufmannDigital\MCP\Tool;
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Eel\ElasticSearchQueryBuilder;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
-use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Neos\Domain\Service\ContentContextFactory;
@@ -16,6 +15,9 @@ use Neos\Neos\Domain\Service\ContentContextFactory;
  */
 class FindByPropertyTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+    use SearchResultTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -46,6 +48,7 @@ class FindByPropertyTool implements ToolInterface
                     'propertyValue' => ['description' => 'Value to match exactly'],
                     'nodeType' => ['type' => 'string', 'description' => 'Filter by node type (optional)'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace name (default: live)'],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'limit' => ['type' => 'integer', 'description' => 'Max results (default: 10)'],
                     'responseProperties' => [
                         'type' => 'array',
@@ -64,11 +67,11 @@ class FindByPropertyTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Error: propertyName and propertyValue are required']];
         }
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $args['workspaceName'] ?? 'live',
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $sitesNode = $context->getNode('/sites');
         if ($sitesNode === null) {
@@ -83,15 +86,8 @@ class FindByPropertyTool implements ToolInterface
             $qb->nodeType($args['nodeType']);
         }
 
-        $responseProperties = $args['responseProperties'] ?? null;
-        $result = $qb->fetch();
-        $nodes = array_map(
-            fn(NodeInterface $node) => $this->nodeSerializer->serializeNodeFiltered($node, $responseProperties),
-            $result['nodes'] ?? []
-        );
-
         return [['type' => 'text', 'text' => json_encode(
-            ['total' => $qb->getTotalItems(), 'nodes' => $nodes],
+            $this->executeSearch($qb, $sitesNode, $args['responseProperties'] ?? null),
             JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
         )]];
     }

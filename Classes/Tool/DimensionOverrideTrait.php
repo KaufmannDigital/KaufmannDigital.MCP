@@ -4,19 +4,29 @@ declare(strict_types=1);
 
 namespace KaufmannDigital\MCP\Tool;
 
+use Neos\Flow\Annotations as Flow;
+
 /**
  * Shared handling of an optional per-call "dimensions" override for tools that
  * resolve nodes through a ContentContext.
  *
  * Without an override no dimensions are passed to the ContentContextFactory at
  * all, so it applies the configured Neos.ContentRepository.contentDimensions
- * defaults (e.g. language=de_DE) automatically. A caller may pass a "dimensions"
- * argument to operate on content stored under a different dimension preset.
+ * defaults automatically. A caller may pass a "dimensions" argument to operate
+ * on content stored under a different dimension preset.
  */
 trait DimensionOverrideTrait
 {
     /**
+     * @Flow\InjectConfiguration(package="Neos.ContentRepository", path="contentDimensions")
+     * @var array|null
+     */
+    protected $configuredContentDimensions;
+
+    /**
      * JSON schema fragment describing the optional "dimensions" input property.
+     * The description is generated from the configured content dimensions, so
+     * it always names the real default values of this installation.
      *
      * @return array<string, mixed>
      */
@@ -24,10 +34,48 @@ trait DimensionOverrideTrait
     {
         return [
             'type' => 'object',
-            'description' => 'Content dimensions to resolve the node in, e.g. {"language": ["de_DE"]}. '
-                . 'Optional — defaults to the ContentRepository default dimensions. '
-                . 'Pass this only to operate on content stored under a non-default dimension.',
+            'description' => $this->dimensionsDescription(),
         ];
+    }
+
+    /**
+     * @return string
+     */
+    protected function dimensionsDescription(): string
+    {
+        $dimensions = is_array($this->configuredContentDimensions) ? $this->configuredContentDimensions : [];
+        if ($dimensions === []) {
+            return 'Content dimensions override. No content dimensions are configured on this installation — omit this argument.';
+        }
+
+        $example = [];
+        $defaults = [];
+        $available = [];
+        foreach ($dimensions as $dimensionName => $dimensionConfiguration) {
+            $default = (string)($dimensionConfiguration['default'] ?? '');
+            $defaults[] = $dimensionName . '=' . $default;
+
+            $defaultPreset = $dimensionConfiguration['defaultPreset'] ?? null;
+            $presetValues = $dimensionConfiguration['presets'][$defaultPreset]['values'] ?? null;
+            $example[$dimensionName] = is_array($presetValues) && $presetValues !== [] ? array_values($presetValues) : [$default];
+
+            $values = [];
+            foreach ($dimensionConfiguration['presets'] ?? [] as $preset) {
+                if (is_array($preset) && !empty($preset['values'])) {
+                    $values[] = json_encode(array_values($preset['values']), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                }
+            }
+            $values = array_values(array_unique($values));
+            if ($values !== []) {
+                $available[] = $dimensionName . ': ' . implode(', ', array_slice($values, 0, 20)) . (count($values) > 20 ? ', …' : '');
+            }
+        }
+
+        return 'Content dimensions to resolve nodes in, e.g. '
+            . json_encode($example, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '. '
+            . 'Optional — defaults to the ContentRepository default dimensions (' . implode(', ', $defaults) . '). '
+            . ($available !== [] ? 'Available values per dimension: ' . implode('; ', $available) . '. ' : '')
+            . 'Pass this only to operate on content stored under a non-default dimension.';
     }
 
     /**

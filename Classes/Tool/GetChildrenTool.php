@@ -39,10 +39,7 @@ class GetChildrenTool implements ToolInterface
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the parent node'],
                     'nodeTypeFilter' => ['type' => 'string', 'description' => 'Node type filter, e.g. Neos.Neos:Document (optional)'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace name (default: live)'],
-                    'dimensions' => [
-                        'type' => 'object',
-                        'description' => 'Content dimensions to resolve nodes in, e.g. {"language": ["de_DE"]}. Optional — defaults to the configured site default (language=de_DE). Override only to read other languages/countries.',
-                    ],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
