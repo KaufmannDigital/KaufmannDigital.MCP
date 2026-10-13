@@ -19,3 +19,16 @@ KaufmannDigital:
     # Relative paths are resolved from FLOW_PATH_ROOT (the project root).
     # Absolute paths are used as-is.
     localImportBasePath: 'Data/MCP-Import'
+
+    # When a tool throws, return exception class, message, code, the affected node/property arguments and the
+    # log reference to the client. Set to false to only return a generic message plus the log reference.
+    # Token holders already have full CR access, so details are exposed by default.
+    exposeErrorDetails: true
+
+    # Request headers which are masked ('***') in Data/Logs/Exceptions dumps (case-insensitive).
+    # The configured Token value is masked in the request information and backtraces as well.
+    # Applies to all exceptions logged via Flow's throwable storage, not only /mcp requests.
+    maskedRequestHeaders:
+      - 'X-Api-Token'
+      - 'Authorization'
+      - 'Proxy-Authorization'
