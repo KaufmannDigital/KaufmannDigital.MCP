@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace KaufmannDigital\MCP\Tool;
 
 use KaufmannDigital\MCP\Utility\NodeSerializer;
+use KaufmannDigital\MCP\Utility\PropertyAdjustmentDetector;
 use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
@@ -41,11 +42,17 @@ class UpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
+    /**
+     * @Flow\Inject
+     * @var PropertyAdjustmentDetector
+     */
+    protected $propertyAdjustmentDetector;
+
     public function getDefinition(): array
     {
         return [
             'name' => 'update_property',
-            'description' => 'Set a single property on a Neos node.',
+            'description' => 'Set a single property on a Neos node. The response contains "warnings" if the stored value differs from the requested one (e.g. uriPathSegment made unique).',
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
@@ -84,15 +91,19 @@ class UpdatePropertyTool implements ToolInterface
 
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($node, $args) {
+        $value = null;
+        $securityContext->withoutAuthorizationChecks(function () use ($node, $args, &$value) {
             $value = $this->propertyValueResolver->resolve($args['propertyName'], $args['propertyValue'], $node->getNodeType());
             $node->setProperty($args['propertyName'], $value);
         });
         $this->persistenceManager->persistAll();
 
-        return [['type' => 'text', 'text' => json_encode(
-            ['updated' => $this->nodeSerializer->serializeNodeFiltered($node, $args['responseProperties'] ?? null)],
-            JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
-        )]];
+        $response = ['updated' => $this->nodeSerializer->serializeNodeFiltered($node, $args['responseProperties'] ?? null)];
+        $warnings = $this->propertyAdjustmentDetector->detect($node, [$args['propertyName'] => $value]);
+        if (!empty($warnings)) {
+            $response['warnings'] = $warnings;
+        }
+
+        return [['type' => 'text', 'text' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)]];
     }
 }

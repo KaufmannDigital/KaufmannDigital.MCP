@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace KaufmannDigital\MCP\Tool;
 
 use KaufmannDigital\MCP\Utility\NodeSerializer;
+use KaufmannDigital\MCP\Utility\PropertyAdjustmentDetector;
 use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
@@ -41,11 +42,17 @@ class BatchUpdatePropertyTool implements ToolInterface
      */
     protected $propertyValueResolver;
 
+    /**
+     * @Flow\Inject
+     * @var PropertyAdjustmentDetector
+     */
+    protected $propertyAdjustmentDetector;
+
     public function getDefinition(): array
     {
         return [
             'name' => 'batch_update_property',
-            'description' => 'Set properties on multiple Neos nodes in a single call.',
+            'description' => 'Set properties on multiple Neos nodes in a single call. The response contains "warnings" (with nodeIdentifier) if a stored value differs from the requested one (e.g. uriPathSegment made unique).',
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
@@ -91,10 +98,11 @@ class BatchUpdatePropertyTool implements ToolInterface
 
         $updated = [];
         $errors = [];
+        $warnings = [];
 
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($context, $args, &$updated, &$errors) {
+        $securityContext->withoutAuthorizationChecks(function () use ($context, $args, &$updated, &$errors, &$warnings) {
             foreach ($args['nodes'] as $nodeArgs) {
                 $nodeIdentifier = $nodeArgs['nodeIdentifier'] ?? null;
                 $properties = $nodeArgs['properties'] ?? [];
@@ -110,9 +118,14 @@ class BatchUpdatePropertyTool implements ToolInterface
                     continue;
                 }
 
+                $resolvedProperties = [];
                 foreach ($properties as $name => $value) {
                     $value = $this->propertyValueResolver->resolve($name, $value, $node->getNodeType());
                     $node->setProperty($name, $value);
+                    $resolvedProperties[$name] = $value;
+                }
+                foreach ($this->propertyAdjustmentDetector->detect($node, $resolvedProperties) as $warning) {
+                    $warnings[] = ['nodeIdentifier' => $nodeIdentifier] + $warning;
                 }
 
                 $updated[] = $this->nodeSerializer->serializeNodeFiltered($node, $args['responseProperties'] ?? null);
@@ -121,9 +134,11 @@ class BatchUpdatePropertyTool implements ToolInterface
 
         $this->persistenceManager->persistAll();
 
-        return [['type' => 'text', 'text' => json_encode(
-            ['updatedCount' => count($updated), 'updated' => $updated, 'errors' => $errors],
-            JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
-        )]];
+        $response = ['updatedCount' => count($updated), 'updated' => $updated, 'errors' => $errors];
+        if (!empty($warnings)) {
+            $response['warnings'] = $warnings;
+        }
+
+        return [['type' => 'text', 'text' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)]];
     }
 }
