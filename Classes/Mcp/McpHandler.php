@@ -10,6 +10,7 @@ use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\Reflection\ReflectionService;
+use Neos\Flow\Security\Context as SecurityContext;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -42,6 +43,12 @@ class McpHandler
      * @var ThrowableStorageInterface
      */
     protected $throwableStorage;
+
+    /**
+     * @Flow\Inject
+     * @var SecurityContext
+     */
+    protected $securityContext;
 
     private ?array $toolInstances = null;
 
@@ -85,7 +92,13 @@ class McpHandler
         foreach ($this->tools() as $tool) {
             if ($tool->getDefinition()['name'] === $toolName) {
                 try {
-                    return ['content' => $tool->execute($params['arguments'] ?? [])];
+                    // Access is already guarded by IP allowlist + API token in the controller, so
+                    // tools run without Flow authorization checks (e.g. reading non-live workspaces).
+                    $content = null;
+                    $this->securityContext->withoutAuthorizationChecks(function () use ($tool, $params, &$content) {
+                        $content = $tool->execute($params['arguments'] ?? []);
+                    });
+                    return ['content' => $content];
                 } catch (\Throwable $e) {
                     $message = $this->throwableStorage->logThrowable($e);
                     $this->logger->error('MCP tool "' . $toolName . '" failed: ' . $message, LogEnvironment::fromMethodName(__METHOD__));

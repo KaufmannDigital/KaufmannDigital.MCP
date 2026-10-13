@@ -26,7 +26,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server for Neos CMS
 - **The API token (and IP-Filter) is the only access control.** Anyone who obtains the token has full read/write access to your Neos content repository, including the ability to create, update, and publish nodes.
 - **Use a strong, randomly generated token** (at minimum 32 characters). Never commit it to version control.
 - **The `upload_asset` tool accepts local filesystem paths.** If enabled, a token holder can import any file readable by the web server process (e.g. config files). Restrict access to trusted users only.
-- **All write operations bypass Flow's authorization checks** (`withoutAuthorizationChecks`). This is intentional for AI-driven automation, but means no Neos backend role restrictions apply.
+- **All tool calls (read and write) bypass Flow's authorization checks** (`withoutAuthorizationChecks`). This is intentional for AI-driven automation, but means no Neos backend role restrictions apply — including access to any workspace.
 - **Only expose the `/mcp` endpoint in development environments** or behind a firewall. Do not expose it on a public production server.
 - **Use HTTP only within ddev/localhost.** If you expose the endpoint over a network, use HTTPS to protect the token in transit.
 
@@ -272,7 +272,7 @@ McpController
               └── NodeSerializer   Shared node serialization
 ```
 
-- **Write tools** bypass Flow's authorization via `SecurityContext::withoutAuthorizationChecks()`
+- **All tools** run without Flow authorization checks: `McpHandler` wraps every tool execution in `SecurityContext::withoutAuthorizationChecks()`, so read tools can access non-live workspaces as well
 - **Asset resolution:** For properties typed as a `Neos\Media\Domain\Model\*` class or interface (e.g. `ImageInterface`), a UUID string is resolved to the Asset object via `AssetRepository::findByIdentifier()`. This handles interface-typed properties that `EntityManager::find()` cannot.
 - **DateTime resolution:** ISO-8601 strings are automatically converted to `DateTime` objects
 - **ElasticSearchQueryBuilder** is prototype-scoped — always instantiate via `$objectManager->get()` for a fresh instance per call
