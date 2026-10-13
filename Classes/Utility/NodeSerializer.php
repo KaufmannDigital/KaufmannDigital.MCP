@@ -37,6 +37,9 @@ class NodeSerializer
             'name' => $node->getName(),
             'depth' => $node->getDepth(),
             'hidden' => $node->isHidden(),
+            'hiddenInIndex' => $node->isHiddenInIndex(),
+            'hiddenBeforeDateTime' => $node->getHiddenBeforeDateTime()?->format(\DateTimeInterface::ATOM),
+            'hiddenAfterDateTime' => $node->getHiddenAfterDateTime()?->format(\DateTimeInterface::ATOM),
             'workspace' => $node->getWorkspace()->getName(),
             'dimensions' => $node->getDimensions(),
             'properties' => $this->serializeProperties($node),
@@ -97,8 +100,9 @@ class NodeSerializer
      *
      * By default (responseProperties = null or []) only "identifier" is returned.
      * Pass an array of field names to include additional data:
-     *   - Meta-fields (returned top-level): "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate",
-     *     "parentIdentifier", "ancestors"
+     *   - Meta-fields (returned top-level): "nodeType", "label", "name", "path", "workspace", "hidden", "hiddenInIndex",
+     *     "hiddenBeforeDateTime", "hiddenAfterDateTime" (the flags are also accessible with "_" prefix, e.g. "_hidden"),
+     *     "creationDate",     *     "parentIdentifier", "ancestors"
      *   - Node property names (returned in a nested "properties" object): "title", "releaseDate", etc.
      *     Prefix with "properties." to request a property whose name collides with a meta-field (e.g. "properties.identifier").
      *   - "*" returns all meta-fields and all node properties, except "ancestors" (which walks the
@@ -122,6 +126,9 @@ class NodeSerializer
             'path'         => fn() => $node->getPath(),
             'workspace'    => fn() => $node->getWorkspace()->getName(),
             'hidden'       => fn() => $node->isHidden(),
+            'hiddenInIndex' => fn() => $node->isHiddenInIndex(),
+            'hiddenBeforeDateTime' => fn() => $node->getHiddenBeforeDateTime()?->format(\DateTimeInterface::ATOM),
+            'hiddenAfterDateTime' => fn() => $node->getHiddenAfterDateTime()?->format(\DateTimeInterface::ATOM),
             'creationDate' => fn() => $node->getCreationDateTime()?->format(\DateTimeInterface::ATOM),
             'parentIdentifier' => fn() => $node->getParent()?->getIdentifier(),
             'ancestors'    => fn() => $this->serializeAncestors($node),
@@ -143,6 +150,11 @@ class NodeSerializer
             $field = (string)$field;
             if (isset($metaFields[$field])) {
                 $result[$field] = ($metaFields[$field])();
+                continue;
+            }
+            if (str_starts_with($field, '_') && isset($metaFields[substr($field, 1)])) {
+                // Internal flag names as used by the write tools, e.g. "_hidden", "_hiddenInIndex"
+                $result[$field] = ($metaFields[substr($field, 1)])();
                 continue;
             }
             $propertyName = str_starts_with($field, 'properties.') ? substr($field, strlen('properties.')) : $field;

@@ -180,7 +180,7 @@ Creates a new node under a given parent node.
 |-----------|------|----------|-------------|
 | `parentNodeIdentifier` | string | ✓ | Parent node UUID |
 | `nodeType` | string | ✓ | Node type name, e.g. `Neos.Neos:Document` |
-| `properties` | object | | Key/value map of properties to set |
+| `properties` | object | | Key/value map of properties to set (may include [internal node flags](#internal-node-flags) like `_hidden`) |
 | `workspaceName` | string | | Workspace (default: `live`) |
 | `dimensions` | object | | Content dimensions to create the node in, e.g. `{"language":["en"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields to return (default: `identifier` only) |
@@ -206,7 +206,7 @@ Sets a single property on a node.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `nodeIdentifier` | string | ✓ | Node UUID |
-| `propertyName` | string | ✓ | Property name |
+| `propertyName` | string | ✓ | Property name, or an [internal node flag](#internal-node-flags) like `_hidden` |
 | `propertyValue` | any | ✓ | New value |
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the node in, e.g. `{"language":["en"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
@@ -219,7 +219,7 @@ Sets properties on multiple nodes in a single call.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodes` | array | ✓ | List of `{nodeIdentifier, properties}` objects |
+| `nodes` | array | ✓ | List of `{nodeIdentifier, properties}` objects (`properties` may include [internal node flags](#internal-node-flags)) |
 | `workspaceName` | string | ✓ | Workspace to write to |
 | `dimensions` | object | | Content dimensions to resolve the nodes in, e.g. `{"language":["en"]}` (default: ContentRepository default — see [Content Dimensions](#content-dimensions)) |
 | `responseProperties` | array | | Fields per node (default: `identifier` only) |
@@ -272,7 +272,7 @@ Updates metadata fields of an existing asset, identified by its asset identifier
 All tools return **only the `identifier` by default**. Use `responseProperties` to request additional fields — keeping this minimal significantly reduces AI context usage.
 
 **Available values:**
-- Meta fields (returned **top-level**): `"identifier"`, `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"creationDate"`, `"parentIdentifier"`, `"ancestors"`
+- Meta fields (returned **top-level**): `"identifier"`, `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"hiddenInIndex"`, `"hiddenBeforeDateTime"`, `"hiddenAfterDateTime"`, `"creationDate"`, `"parentIdentifier"`, `"ancestors"` (the hidden flags can also be requested with their `_`-prefixed write names, e.g. `"_hidden"`)
   - `"parentIdentifier"`: UUID of the direct parent node (`null` for the root node) — use it e.g. as `parentNodeIdentifier` for `create_node` to create a sibling
   - `"ancestors"`: array of `{identifier, nodeType, name}` from the topmost ancestor below the root node (`/sites`) down to the direct parent — useful to find the containing document (e.g. the first `Neos.Neos:Document` from the end)
 - Node properties (returned in a nested **`properties`** object): any property name defined on the node type, e.g. `"title"`, `"releaseDate"`, `"uriPathSegment"`. To request a node property whose name collides with a meta field, prefix it with `properties.` (e.g. `"properties.identifier"`).
@@ -314,6 +314,28 @@ Requested names that are neither a meta field nor a property declared on the nod
 | Other objects | `{"__type": "<class>", "__string": "…"}` |
 
 Serialization errors are reported per property instead of failing the whole request: a property that cannot be read is returned as `{"__type": "Error", "error": "…"}`; if only the URL of an image/asset cannot be generated, the value is returned with `"url": null` and an `"error"` field.
+
+---
+
+## Internal node flags
+
+The write tools (`create_node`, `update_property`, `batch_update_property`) accept the following internal flags in place of a property name. They are mapped to the corresponding node setters instead of being stored as regular properties:
+
+| Flag | Value | Effect |
+|------|-------|--------|
+| `_hidden` | boolean | Hide the node (`setHidden()`) |
+| `_hiddenInIndex` | boolean | Hide the node in menus (`setHiddenInIndex()`) |
+| `_hiddenBeforeDateTime` | ISO 8601 string or `null` | Hide before date/time (`setHiddenBeforeDateTime()`) |
+| `_hiddenAfterDateTime` | ISO 8601 string or `null` | Hide after date/time (`setHiddenAfterDateTime()`) |
+
+Any other `_`-prefixed name is rejected with an error. Invalid values (e.g. a non-boolean for `_hidden`) are rejected as well; with `create_node` and `update_property` nothing is written in that case, with `batch_update_property` the affected node is skipped and reported in `errors`.
+
+```jsonc
+// Hide a page in menus
+{ "nodeIdentifier": "…", "propertyName": "_hiddenInIndex", "propertyValue": true, "workspaceName": "live" }
+```
+
+Read them back via the meta fields `hidden`, `hiddenInIndex`, `hiddenBeforeDateTime`, `hiddenAfterDateTime` in `responseProperties`.
 
 ---
 

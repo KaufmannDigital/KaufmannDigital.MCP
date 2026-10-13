@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace KaufmannDigital\MCP\Tool;
 
+use KaufmannDigital\MCP\Utility\NodeFlagHandler;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
 use KaufmannDigital\MCP\Utility\PropertyValueResolver;
 use Neos\ContentRepository\Domain\Service\NodeTypeManager;
@@ -55,6 +56,12 @@ class CreateNodeTool implements ToolInterface
      */
     protected $nodeUriPathSegmentGenerator;
 
+    /**
+     * @Flow\Inject
+     * @var NodeFlagHandler
+     */
+    protected $nodeFlagHandler;
+
     public function getDefinition(): array
     {
         return [
@@ -65,13 +72,13 @@ class CreateNodeTool implements ToolInterface
                 'properties' => [
                     'parentNodeIdentifier' => ['type' => 'string', 'description' => 'UUID of the parent node'],
                     'nodeType' => ['type' => 'string', 'description' => 'Node type name, e.g. KaufmannDigital.Nova.Magazine:Page.Magazine'],
-                    'properties' => ['type' => 'object', 'description' => 'Optional key/value map of properties to set on the new node'],
+                    'properties' => ['type' => 'object', 'description' => 'Optional key/value map of properties to set on the new node. ' . NodeFlagHandler::DESCRIPTION],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace to create the node in (default: live)'],
                     'dimensions' => $this->dimensionsInputSchema(),
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title", "uriPathSegment") and/or meta-fields: "nodeType", "label", "name", "path", "parentIdentifier", "ancestors". Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
+                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title", "uriPathSegment") and/or meta-fields: "nodeType", "label", "name", "path", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime", "parentIdentifier", "ancestors". Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
                     ],
                 ],
                 'required' => ['parentNodeIdentifier', 'nodeType'],
@@ -113,8 +120,17 @@ class CreateNodeTool implements ToolInterface
         }
 
         $resolvedProperties = [];
+        $flags = [];
         if (is_array($properties)) {
             foreach ($properties as $name => $value) {
+                if ($this->nodeFlagHandler->isInternalName((string)$name)) {
+                    try {
+                        $flags[$name] = $this->nodeFlagHandler->normalize((string)$name, $value);
+                    } catch (\InvalidArgumentException $e) {
+                        return [['type' => 'text', 'text' => 'Error: ' . $e->getMessage()]];
+                    }
+                    continue;
+                }
                 $resolvedProperties[$name] = $this->propertyValueResolver->resolve($name, $value, $nodeType);
             }
         }
@@ -122,10 +138,13 @@ class CreateNodeTool implements ToolInterface
         $newNode = null;
         /** @var \Neos\Flow\Security\Context $securityContext */
         $securityContext = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Flow\Security\Context::class);
-        $securityContext->withoutAuthorizationChecks(function () use ($parentNode, $nodeName, $nodeType, $resolvedProperties, $properties, &$newNode) {
+        $securityContext->withoutAuthorizationChecks(function () use ($parentNode, $nodeName, $nodeType, $resolvedProperties, $flags, $properties, &$newNode) {
             $newNode = $parentNode->createNode($nodeName, $nodeType);
             foreach ($resolvedProperties as $propertyName => $propertyValue) {
                 $newNode->setProperty($propertyName, $propertyValue);
+            }
+            foreach ($flags as $flagName => $flagValue) {
+                $this->nodeFlagHandler->apply($newNode, $flagName, $flagValue);
             }
             if ($newNode->getNodeType()->isOfType('Neos.Neos:Document')) {
                 if (empty($properties['uriPathSegment'])) {
