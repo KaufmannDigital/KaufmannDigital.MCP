@@ -148,6 +148,15 @@ class MoveNodeTool implements ToolInterface
                     $node->setName($newName);
                 }
                 $nameArgument = (!$sameParent && $newName !== $oldName) ? $newName : null;
+                if ($position === 'into' && $sameParent) {
+                    // Node::moveInto() is a no-op for the current parent — append behind the last sibling instead
+                    $siblings = $targetNode->getChildNodes();
+                    $lastChildNode = $siblings !== [] ? end($siblings) : null;
+                    if ($lastChildNode !== null && $lastChildNode->getIdentifier() !== $node->getIdentifier()) {
+                        $node->moveAfter($lastChildNode);
+                    }
+                    return;
+                }
                 match ($position) {
                     'before' => $node->moveBefore($targetNode, $nameArgument),
                     'after' => $node->moveAfter($targetNode, $nameArgument),
