@@ -97,10 +97,12 @@ class NodeSerializer
      *
      * By default (responseProperties = null or []) only "identifier" is returned.
      * Pass an array of field names to include additional data:
-     *   - Meta-fields (returned top-level): "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate"
+     *   - Meta-fields (returned top-level): "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate",
+     *     "parentIdentifier", "ancestors"
      *   - Node property names (returned in a nested "properties" object): "title", "releaseDate", etc.
      *     Prefix with "properties." to request a property whose name collides with a meta-field (e.g. "properties.identifier").
-     *   - "*" returns all meta-fields and all node properties.
+     *   - "*" returns all meta-fields and all node properties, except "ancestors" (which walks the
+     *     whole parent chain and would bloat list responses); request "ancestors" explicitly if needed.
      * Requested names that are neither meta-fields nor declared/stored node properties are listed in "unknownProperties".
      */
     public function serializeNodeFiltered(NodeInterface $node, array|string|null $responseProperties): array
@@ -121,9 +123,14 @@ class NodeSerializer
             'workspace'    => fn() => $node->getWorkspace()->getName(),
             'hidden'       => fn() => $node->isHidden(),
             'creationDate' => fn() => $node->getCreationDateTime()?->format(\DateTimeInterface::ATOM),
+            'parentIdentifier' => fn() => $node->getParent()?->getIdentifier(),
+            'ancestors'    => fn() => $this->serializeAncestors($node),
         ];
         if (in_array('*', $responseProperties, true)) {
             foreach ($metaFields as $field => $resolver) {
+                if ($field === 'ancestors' && !in_array('ancestors', $responseProperties, true)) {
+                    continue;
+                }
                 $result[$field] = $resolver();
             }
             $result['properties'] = $this->serializeProperties($node);
@@ -152,6 +159,25 @@ class NodeSerializer
             $result['unknownProperties'] = $unknownProperties;
         }
         return $result;
+    }
+
+    /**
+     * Ancestors of the node, ordered from the topmost ancestor (below the root node "/", i.e. "/sites")
+     * down to the direct parent. Each entry contains identifier, nodeType and name.
+     */
+    private function serializeAncestors(NodeInterface $node): array
+    {
+        $ancestors = [];
+        $parent = $node->getParent();
+        while ($parent !== null && $parent->getPath() !== '/') {
+            $ancestors[] = [
+                'identifier' => $parent->getIdentifier(),
+                'nodeType' => $parent->getNodeType()->getName(),
+                'name' => $parent->getName(),
+            ];
+            $parent = $parent->getParent();
+        }
+        return array_reverse($ancestors);
     }
 
     public function serializeValue(mixed $value): mixed

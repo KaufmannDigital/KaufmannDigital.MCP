@@ -71,7 +71,7 @@ class CreateNodeTool implements ToolInterface
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title", "uriPathSegment") and/or meta-fields: "nodeType", "label", "name", "path". Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
+                        'description' => 'Fields to include in the response. Default: only "identifier". Add node property names (e.g. "title", "uriPathSegment") and/or meta-fields: "nodeType", "label", "name", "path", "parentIdentifier", "ancestors". Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
                     ],
                 ],
                 'required' => ['parentNodeIdentifier', 'nodeType'],

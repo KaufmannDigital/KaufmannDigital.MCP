@@ -272,9 +272,11 @@ Updates metadata fields of an existing asset, identified by its asset identifier
 All tools return **only the `identifier` by default**. Use `responseProperties` to request additional fields — keeping this minimal significantly reduces AI context usage.
 
 **Available values:**
-- Meta fields (returned **top-level**): `"identifier"`, `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"creationDate"`
+- Meta fields (returned **top-level**): `"identifier"`, `"nodeType"`, `"label"`, `"name"`, `"path"`, `"workspace"`, `"hidden"`, `"creationDate"`, `"parentIdentifier"`, `"ancestors"`
+  - `"parentIdentifier"`: UUID of the direct parent node (`null` for the root node) — use it e.g. as `parentNodeIdentifier` for `create_node` to create a sibling
+  - `"ancestors"`: array of `{identifier, nodeType, name}` from the topmost ancestor below the root node (`/sites`) down to the direct parent — useful to find the containing document (e.g. the first `Neos.Neos:Document` from the end)
 - Node properties (returned in a nested **`properties`** object): any property name defined on the node type, e.g. `"title"`, `"releaseDate"`, `"uriPathSegment"`. To request a node property whose name collides with a meta field, prefix it with `properties.` (e.g. `"properties.identifier"`).
-- `"*"`: all meta fields plus all node properties
+- `["*"]`: all meta fields plus all node properties, **except `"ancestors"`** (it walks the whole parent chain per node, which is costly for long result lists). Use `["*", "ancestors"]` to get both.
 
 Requested names that are neither a meta field nor a property declared on the node type (or stored on the node) are listed in an `unknownProperties` array instead of being returned as `null`.
 
@@ -290,6 +292,9 @@ Requested names that are neither a meta field nor a property declared on the nod
   "properties": { "title": "Hello world", "releaseDate": "2024-05-01T00:00:00+00:00" },
   "unknownProperties": ["titel"]
 }
+
+// Resolve the parent (e.g. to create a sibling) and the containing page
+"responseProperties": ["parentIdentifier", "ancestors"]
 
 // After write operations: omit responseProperties entirely — only identifier is needed
 ```
