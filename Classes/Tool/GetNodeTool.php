@@ -37,15 +37,12 @@ class GetNodeTool implements ToolInterface
                 'properties' => [
                     'nodeIdentifier' => ['type' => 'string', 'description' => 'The UUID of the Neos node'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace name (default: live)'],
-                    'dimensions' => [
-                        'type' => 'object',
-                        'description' => 'Content dimensions to resolve the node in, e.g. {"language": ["de_DE"]}. Optional — defaults to the configured site default (language=de_DE). Override only to read other languages/countries.',
-                    ],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'includeChildren' => ['type' => 'boolean', 'description' => 'Include direct child nodes in the response (default: false)'],
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden". Use ["*"] to return all node properties and all meta-fields at once.',
+                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime", "creationDate", "parentIdentifier" (UUID of the direct parent), "ancestors" (list of {identifier, nodeType, name} from /sites down to the direct parent). Use ["*"] to return all node properties and all meta-fields at once (except "ancestors", which must be requested explicitly). Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
                     ],
                 ],
                 'required' => ['nodeIdentifier'],

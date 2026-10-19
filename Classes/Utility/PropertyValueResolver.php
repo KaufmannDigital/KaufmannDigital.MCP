@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace KaufmannDigital\MCP\Utility;
 
+use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\ContentRepository\Domain\Model\NodeType;
+use Neos\ContentRepository\Validation\Validator\NodeIdentifierValidator;
 use Neos\Flow\Annotations as Flow;
 
 /**
@@ -14,11 +16,21 @@ class PropertyValueResolver
 {
     public function resolve(string $propertyName, mixed $value, NodeType $nodeType): mixed
     {
+        $type = $nodeType->getPropertyType($propertyName);
+
+        // Node references must be normalized explicitly: Neos' AbstractNodeData::setProperty()
+        // silently replaces any non-array "references" value (e.g. a JSON-encoded string or a
+        // single identifier) with [] and drops entries that are not valid node identifiers.
+        if ($type === 'references') {
+            return $this->resolveReferences($propertyName, $value);
+        }
+        if ($type === 'reference') {
+            return $this->resolveReference($propertyName, $value);
+        }
+
         if (!is_string($value)) {
             return $value;
         }
-
-        $type = $nodeType->getPropertyType($propertyName);
 
         if ($type === 'DateTime') {
             try {
@@ -50,5 +62,82 @@ class PropertyValueResolver
         }
 
         return $value;
+    }
+
+    /**
+     * Normalizes a "references" value to a list of node identifiers.
+     *
+     * Accepts an array of identifiers (or nodes), a JSON-encoded array string, a single
+     * identifier string, or null/"" (= no references). Throws on anything that Neos would
+     * otherwise silently discard.
+     *
+     * @return string[]
+     */
+    private function resolveReferences(string $propertyName, mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if (str_starts_with($trimmed, '[')) {
+                $decoded = json_decode($trimmed, true);
+                if (!is_array($decoded)) {
+                    throw new \InvalidArgumentException(
+                        sprintf('Invalid value for references property "%s": could not decode JSON array %s', $propertyName, $value),
+                        1710000002
+                    );
+                }
+                $value = $decoded;
+            } else {
+                $value = [$trimmed];
+            }
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid value for references property "%s": expected an array of node identifiers, got %s', $propertyName, get_debug_type($value)),
+                1710000003
+            );
+        }
+
+        $identifiers = [];
+        foreach (array_values($value) as $entry) {
+            $identifiers[] = $this->normalizeNodeIdentifier($propertyName, $entry);
+        }
+        return $identifiers;
+    }
+
+    /**
+     * Normalizes a "reference" value to a single node identifier (or null).
+     */
+    private function resolveReference(string $propertyName, mixed $value): ?string
+    {
+        if (is_array($value)) {
+            if (count($value) > 1) {
+                throw new \InvalidArgumentException(
+                    sprintf('Invalid value for reference property "%s": expected a single node identifier, got %d', $propertyName, count($value)),
+                    1710000004
+                );
+            }
+            $value = $value === [] ? null : reset($value);
+        }
+        if ($value === null || $value === '') {
+            return null;
+        }
+        return $this->normalizeNodeIdentifier($propertyName, $value);
+    }
+
+    private function normalizeNodeIdentifier(string $propertyName, mixed $entry): string
+    {
+        if ($entry instanceof NodeInterface) {
+            return $entry->getIdentifier();
+        }
+        if (is_string($entry) && preg_match(NodeIdentifierValidator::PATTERN_MATCH_NODE_IDENTIFIER, trim($entry)) === 1) {
+            return trim($entry);
+        }
+        throw new \InvalidArgumentException(
+            sprintf('Invalid node identifier for property "%s": %s', $propertyName, is_scalar($entry) ? (string)$entry : get_debug_type($entry)),
+            1710000005
+        );
     }
 }

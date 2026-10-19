@@ -6,7 +6,6 @@ namespace KaufmannDigital\MCP\Tool;
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Eel\ElasticSearchQueryBuilder;
 use KaufmannDigital\MCP\Utility\NodeSerializer;
-use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Neos\Domain\Service\ContentContextFactory;
@@ -16,6 +15,9 @@ use Neos\Neos\Domain\Service\ContentContextFactory;
  */
 class SearchNodesTool implements ToolInterface
 {
+    use DimensionOverrideTrait;
+    use SearchResultTrait;
+
     /**
      * @Flow\Inject
      * @var ContentContextFactory
@@ -45,11 +47,12 @@ class SearchNodesTool implements ToolInterface
                     'query' => ['type' => 'string', 'description' => 'Full-text search term (optional if nodeType is set)'],
                     'nodeType' => ['type' => 'string', 'description' => 'Filter by node type, e.g. Neos.Neos:Document (optional)'],
                     'workspaceName' => ['type' => 'string', 'description' => 'Workspace name (default: live)'],
+                    'dimensions' => $this->dimensionsInputSchema(),
                     'limit' => ['type' => 'integer', 'description' => 'Max results (default: 10)'],
                     'responseProperties' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "creationDate". Use ["*"] to return all node properties and all meta-fields at once.',
+                        'description' => 'Fields to include per node. Default: only "identifier". Add node property names (e.g. "title", "releaseDate") and/or meta-fields: "nodeType", "label", "name", "path", "workspace", "hidden", "hiddenInIndex", "hiddenBeforeDateTime", "hiddenAfterDateTime", "creationDate", "parentIdentifier" (UUID of the direct parent), "ancestors" (list of {identifier, nodeType, name} from /sites down to the direct parent). Use ["*"] to return all node properties and all meta-fields at once (except "ancestors", which must be requested explicitly). Meta-fields are returned top-level, node properties in a nested "properties" object (prefix "properties." to request a property named like a meta-field, e.g. "properties.identifier"); unknown names are listed in "unknownProperties".',
                     ],
                     'sortBy' => ['type' => 'string', 'description' => 'Elasticsearch field to sort by. Use "neos_creation_date_time" for creation date, "neos_last_modification_date_time" for last modification, or a node property name (default: no explicit sort)'],
                     'sortDirection' => ['type' => 'string', 'enum' => ['asc', 'desc'], 'description' => 'Sort direction: "asc" or "desc" (default: desc)'],
@@ -67,15 +70,16 @@ class SearchNodesTool implements ToolInterface
             return [['type' => 'text', 'text' => 'Error: either query or nodeType is required']];
         }
 
-        $context = $this->contentContextFactory->create([
+        $context = $this->contentContextFactory->create(array_merge([
             'workspaceName' => $args['workspaceName'] ?? 'live',
             'invisibleContentShown' => true,
             'inaccessibleContentShown' => true,
-        ]);
+        ], $this->dimensionContextProperties($args['dimensions'] ?? null)));
 
         $sitesNode = $context->getNode('/sites');
         if ($sitesNode === null) {
-            return [['type' => 'text', 'text' => 'Error: /sites node not found']];
+            return [['type' => 'text', 'text' => 'Error: /sites node not found'
+                . (empty($args['dimensions']) ? '' : ' in the requested dimensions ' . (is_string($args['dimensions']) ? $args['dimensions'] : json_encode($args['dimensions'], JSON_UNESCAPED_UNICODE)) . ' — no content exists in these dimensions')]];
         }
 
         /** @var ElasticSearchQueryBuilder $qb */
@@ -97,15 +101,8 @@ class SearchNodesTool implements ToolInterface
             }
         }
 
-        $responseProperties = $args['responseProperties'] ?? null;
-        $result = $qb->fetch();
-        $nodes = array_map(
-            fn(NodeInterface $node) => $this->nodeSerializer->serializeNodeFiltered($node, $responseProperties),
-            $result['nodes'] ?? []
-        );
-
         return [['type' => 'text', 'text' => json_encode(
-            ['total' => $qb->getTotalItems(), 'nodes' => $nodes],
+            $this->executeSearch($qb, $sitesNode, $args['responseProperties'] ?? null),
             JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
         )]];
     }
