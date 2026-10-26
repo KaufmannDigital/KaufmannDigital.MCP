@@ -8,6 +8,8 @@ use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\ContentRepository\Domain\Model\NodeType;
 use Neos\ContentRepository\Validation\Validator\NodeIdentifierValidator;
 use Neos\Flow\Annotations as Flow;
+use Neos\Media\Domain\Model\AssetInterface;
+use Neos\Media\Domain\Model\ImageInterface;
 
 /**
  * @Flow\Scope("singleton")
@@ -26,6 +28,14 @@ class PropertyValueResolver
         }
         if ($type === 'reference') {
             return $this->resolveReference($propertyName, $value);
+        }
+
+        $isAssetType = $this->isAssetType($type);
+
+        // Clearing an asset property: some clients send null as the string "null". Passing that
+        // string on would store it as is and break every later read of the property.
+        if ($isAssetType && ($value === null || $value === '' || $value === 'null')) {
+            return null;
         }
 
         if (!is_string($value)) {
@@ -47,21 +57,34 @@ class PropertyValueResolver
         // Asset-like properties (Image, Asset, Document and their interfaces) are referenced
         // by asset identifier. Interfaces (e.g. ImageInterface) must be resolved via the
         // AssetRepository, since class_exists()/EntityManager::find() cannot handle them.
-        if (str_contains($type, 'Neos\\Media\\Domain\\Model\\') && (class_exists($type) || interface_exists($type))) {
+        if ($isAssetType) {
             $assetRepository = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Neos\Media\Domain\Repository\AssetRepository::class);
             $asset = $assetRepository->findByIdentifier($value);
-            if ($asset !== null) {
-                return $asset;
-            }
-            if (class_exists($type)) {
+            if ($asset === null && class_exists($type)) {
                 /** @var \Doctrine\ORM\EntityManagerInterface $em */
                 $em = \Neos\Flow\Core\Bootstrap::$staticObjectManager->get(\Doctrine\ORM\EntityManagerInterface::class);
-                return $em->find($type, $value) ?? $value;
+                $asset = $em->find($type, $value);
             }
-            return $value;
+            // An unresolvable identifier must not be stored as plain string, the node property would be unreadable
+            if ($asset === null) {
+                throw new \InvalidArgumentException(
+                    sprintf('Invalid value for asset property "%s": no asset found for identifier "%s"', $propertyName, $value),
+                    1710000006
+                );
+            }
+            return $asset;
         }
 
         return $value;
+    }
+
+    /**
+     * Asset-like property types (Asset, Image, Document, custom asset classes and their interfaces) are referenced
+     * by asset identifier. ImageInterface does not extend AssetInterface, so both have to be checked.
+     */
+    private function isAssetType(string $type): bool
+    {
+        return is_a($type, AssetInterface::class, true) || is_a($type, ImageInterface::class, true);
     }
 
     /**
